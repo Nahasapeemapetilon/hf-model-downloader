@@ -170,11 +170,25 @@ class SchedulerConfig:
         return {"enabled": self.enabled, "start": self.start,
                 "end": self.end, "days": self.days}
 
+    @staticmethod
+    def _parse_time(value: str, default: str) -> str:
+        """Validates HH:MM format and returns it, or falls back to default."""
+        try:
+            h, m = map(int, str(value).split(':'))
+            if 0 <= h <= 23 and 0 <= m <= 59:
+                return f"{h:02d}:{m:02d}"
+        except (ValueError, AttributeError):
+            pass
+        logger.warning(f"[SCHEDULER] Ungültiges Zeitformat '{value}' – verwende Standard '{default}'")
+        return default
+
     def update(self, d: dict):
         self.enabled = bool(d.get("enabled", False))
-        self.start   = d.get("start", "23:00")
-        self.end     = d.get("end",   "07:00")
-        self.days    = [int(x) for x in d.get("days", list(range(7)))]
+        self.start   = self._parse_time(d.get("start", "23:00"), "23:00")
+        self.end     = self._parse_time(d.get("end",   "07:00"), "07:00")
+        self.days    = [x for x in (int(v) for v in d.get("days", list(range(7)))) if 0 <= x <= 6]
+        if not self.days:
+            self.days = list(range(7))
 
     def save(self, path: str):
         tmp = path + ".tmp"
