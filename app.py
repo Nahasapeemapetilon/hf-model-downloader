@@ -623,6 +623,13 @@ def _is_valid_hf_name(name: str) -> bool:
     """Returns True if name looks like a valid HuggingFace org or repo identifier."""
     return bool(_HF_NAME_RE.match(name))
 
+def _has_any_file(directory: str) -> bool:
+    """Returns True if directory contains at least one file anywhere in its subtree."""
+    for _, _, files in os.walk(directory):
+        if files:
+            return True
+    return False
+
 def get_completed_downloads():
     """
     Scans the download directory for local repos.
@@ -653,15 +660,14 @@ def get_completed_downloads():
                     sub_path = os.path.join(item_path, sub_item)
                     if not os.path.isdir(sub_path):
                         continue
-                    # Only include if it actually contains files
+                    # Only include if it actually contains files (anywhere in subtree)
                     try:
-                        sub_contents = os.listdir(sub_path)
-                        if any(os.path.isfile(os.path.join(sub_path, f)) for f in sub_contents):
+                        if _has_any_file(sub_path):
                             completed.append(f"{item}/{sub_item}")
                     except OSError:
                         continue
-            elif has_files:
-                # Root-level repo (e.g. 'gpt2') with files directly inside
+            elif has_files or _has_any_file(item_path):
+                # Root-level repo (e.g. 'gpt2') with files directly inside or in subdirs
                 completed.append(item)
             # Empty directories are ignored
         except OSError:
