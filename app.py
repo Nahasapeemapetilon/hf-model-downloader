@@ -212,6 +212,7 @@ class DownloadManager:
         self._pause_event = threading.Event()
         self._cancel_requested = False
         self._download_thread = None
+        self._worker_running = False
         self._lock = threading.Lock()
         self.scheduler = SchedulerConfig()
         self.scheduler.load(os.path.join(DATA_DIR, "scheduler.json"))
@@ -267,6 +268,7 @@ class DownloadManager:
                     restored += 1
             if restored:
                 logger.info(f"[QUEUE] {restored} Job(s) aus gespeichertem Queue-State wiederhergestellt")
+                self._worker_running = True
                 self._download_thread = threading.Thread(target=self._download_worker, daemon=True)
                 self._download_thread.start()
         except Exception as exc:
@@ -320,7 +322,8 @@ class DownloadManager:
             logger.info(f"[QUEUE] '{repo_id}' hinzugefügt ({len(files)} Datei(en), {mode}) | Warteschlange: {len(self.queue)} Job(s)")
             self._save_queue()
             # If the download thread is not running, start it
-            if self._download_thread is None or not self._download_thread.is_alive():
+            if not self._worker_running:
+                self._worker_running = True
                 self._download_thread = threading.Thread(target=self._download_worker, daemon=True)
                 self._download_thread.start()
             elif not scheduled:
@@ -404,185 +407,189 @@ class DownloadManager:
             return base_status
 
     def _download_worker(self):
-        while True:
-            job = None
-            with self._lock:
-                in_window = self.scheduler.is_in_window()
-                # Priority 1: immediate (non-scheduled) jobs
-                for i, j in enumerate(self.queue):
-                    if not j.scheduled:
-                        job = self.queue.pop(i)
-                        break
-                # Priority 2: scheduled jobs — only if window is open
-                if job is None and in_window:
+        try:
+            while True:
+                job = None
+                with self._lock:
+                    in_window = self.scheduler.is_in_window()
+                    # Priority 1: immediate (non-scheduled) jobs
                     for i, j in enumerate(self.queue):
-                        if j.scheduled:
+                        if not j.scheduled:
                             job = self.queue.pop(i)
                             break
-
-                if job is None:
-                    if not self.queue:
-                        self.current_job = None
-                        logger.info("[WORKER] Warteschlange leer – Worker beendet")
-                        self._save_queue()
-                        return
-                    # Only scheduled jobs remain, window not open yet — wait
-                else:
-                    self.current_job = job
-                    job.status = 'downloading'
-                    self._cancel_requested = False
-                    self._pause_event.set()
-                    self._save_queue()
-
-            if job is None:
-                mins = self.scheduler.minutes_until_window()
-                logger.info(f"[SCHEDULER] Nur geplante Jobs – warte auf Zeitfenster "
-                            f"({self.scheduler.start}–{self.scheduler.end}, in {mins} min)")
-                # Wait up to 60s, but wake up immediately if a non-scheduled job arrives
-                self._wakeup_event.wait(timeout=60)
-                self._wakeup_event.clear()
-                continue
-
-            job = self.current_job
-            logger.info(f"[START] Starte Job: '{job.repo_id}' | {job.total_files} Datei(en)")
-
-            for i, filename in enumerate(job.files_to_download):
-                if self._cancel_requested: break
-                self._pause_event.wait()
-                if self._cancel_requested: break
-
-                job.current_file_index = i
-                job.current_file = filename
-                job.current_file_progress = 0
-
-                local_dir = os.path.join(DOWNLOAD_DIR, job.repo_id)
-                local_path = os.path.realpath(os.path.join(local_dir, filename.replace("/", os.sep)))
-                if not local_path.startswith(os.path.realpath(DOWNLOAD_DIR)):
-                    logger.error(f"[SECURITY] Path-Traversal in Dateiname blockiert: '{filename}'")
-                    continue
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-
-                url = hf_hub_url(job.repo_id, filename)
-                file_done = False
-
-                for attempt, retry_delay in enumerate(_FILE_RETRY_DELAYS + [None], start=1):
-                    if self._cancel_requested:
-                        break
-                    try:
-                        # Re-read existing size on every attempt so resume picks up
-                        # exactly where the last attempt left off.
-                        existing_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
-                        req_headers = {}
-                        if existing_size > 0:
-                            req_headers['Range'] = f'bytes={existing_size}-'
-                        if HF_TOKEN:
-                            req_headers['Authorization'] = f'Bearer {HF_TOKEN}'
-
-                        with requests.get(url, stream=True, timeout=30, headers=req_headers) as r:
-                            # 416 = Datei bereits vollständig vorhanden
-                            if r.status_code == 416:
-                                logger.info(f"[SKIP] ({i + 1}/{job.total_files}) '{filename}' – bereits vollständig, übersprungen")
-                                job.current_file_progress = 100
-                                job.total_progress = ((i + 1) / job.total_files) * 100
-                                file_done = True
+                    # Priority 2: scheduled jobs — only if window is open
+                    if job is None and in_window:
+                        for i, j in enumerate(self.queue):
+                            if j.scheduled:
+                                job = self.queue.pop(i)
                                 break
 
-                            r.raise_for_status()
+                    if job is None:
+                        if not self.queue:
+                            self.current_job = None
+                            logger.info("[WORKER] Warteschlange leer – Worker beendet")
+                            self._save_queue()
+                            return
+                        # Only scheduled jobs remain, window not open yet — wait
+                    else:
+                        self.current_job = job
+                        job.status = 'downloading'
+                        self._cancel_requested = False
+                        self._pause_event.set()
+                        self._save_queue()
 
-                            if r.status_code == 206:
-                                remaining  = int(r.headers.get('content-length', 0))
-                                total_size = existing_size + remaining
-                                downloaded = existing_size
-                                file_mode  = 'ab'
-                                size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
-                                logger.info(f"[RESUME] ({i + 1}/{job.total_files}) '{filename}' | "
-                                            f"Fortsetze ab {_fmt_size(existing_size)} / {size_str}")
-                            else:
-                                total_size = int(r.headers.get('content-length', 0))
-                                downloaded = 0
-                                file_mode  = 'wb'
-                                size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
-                                if existing_size > 0:
-                                    logger.warning(f"[RESTART] Server unterstützt kein Resume – "
-                                                   f"'{filename}' wird neu gestartet (vorher: {_fmt_size(existing_size)})")
-                                else:
-                                    logger.info(f"[FILE] ({i + 1}/{job.total_files}) '{filename}' | {size_str}")
+                if job is None:
+                    mins = self.scheduler.minutes_until_window()
+                    logger.info(f"[SCHEDULER] Nur geplante Jobs – warte auf Zeitfenster "
+                                f"({self.scheduler.start}–{self.scheduler.end}, in {mins} min)")
+                    # Wait up to 60s, but wake up immediately if a non-scheduled job arrives
+                    self._wakeup_event.wait(timeout=60)
+                    self._wakeup_event.clear()
+                    continue
 
-                            last_logged_pct = int((downloaded / total_size * 100) // 25) * 25 if total_size > 0 else -1
-                            with open(local_path, file_mode) as f:
-                                for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
-                                    if self._cancel_requested: break
-                                    self._pause_event.wait()
-                                    if self._cancel_requested: break
-                                    if chunk:
-                                        f.write(chunk)
-                                        downloaded += len(chunk)
-                                        if total_size > 0:
-                                            job.current_file_progress = (downloaded / total_size) * 100
-                                            job.total_progress = ((i + (downloaded / total_size)) / job.total_files) * 100
-                                            pct = int(job.current_file_progress // 25) * 25
-                                            if pct > last_logged_pct and pct > 0:
-                                                last_logged_pct = pct
-                                                logger.info(f"[PROGRESS] '{filename}' – {pct}% "
-                                                            f"({_fmt_size(downloaded)} / {size_str}) | "
-                                                            f"Gesamt: {job.total_progress:.1f}%")
+                job = self.current_job
+                logger.info(f"[START] Starte Job: '{job.repo_id}' | {job.total_files} Datei(en)")
 
-                        if self._cancel_requested:
-                            logger.info(f"[CANCEL] '{filename}' unterbrochen bei {_fmt_size(downloaded)} – "
-                                        f"Teildatei bleibt für späteres Resume erhalten")
-                            break
-                        logger.info(f"[DONE] '{filename}' vollständig heruntergeladen ({_fmt_size(downloaded)})")
-                        file_done = True
-                        break  # success — move on to next file
+                for i, filename in enumerate(job.files_to_download):
+                    if self._cancel_requested: break
+                    self._pause_event.wait()
+                    if self._cancel_requested: break
 
-                    except _NET_ERRORS as e:
-                        if self._cancel_requested:
-                            break
-                        if retry_delay is not None:
-                            logger.warning(f"[RETRY] Netzwerkfehler bei '{filename}' "
-                                           f"(Versuch {attempt}/{len(_FILE_RETRY_DELAYS)}): {e} – "
-                                           f"Retry in {retry_delay}s (Resume ab Teildatei)")
-                            # Sleep interruptibly so cancel still works
-                            for _ in range(retry_delay):
-                                if self._cancel_requested: break
-                                time.sleep(1)
-                        else:
-                            logger.error(f"[ERROR] '{filename}' nach {len(_FILE_RETRY_DELAYS)} Retries aufgegeben: {e}")
-                            job.status = 'error'
-                            job.error_message = f"Network error after {len(_FILE_RETRY_DELAYS)} retries: {e}"
-
-                    except Exception as e:
-                        if not self._cancel_requested:
-                            job.status = 'error'
-                            job.error_message = f"Failed to download {filename}: {e}"
-                            logger.error(f"[ERROR] Fehler beim Download von '{filename}': {e}")
-                        break  # non-network error — don't retry
-
-                if job.status == 'error' or self._cancel_requested:
-                    break
-
-            with self._lock:
-                if self._reschedule_current:
-                    # Re-queue as scheduled job instead of cancelling
-                    self._reschedule_current = False
-                    self._cancel_requested = False
-                    job.status = 'queued'
-                    job.current_file_index = 0
-                    job.current_file = ""
+                    job.current_file_index = i
+                    job.current_file = filename
                     job.current_file_progress = 0
-                    job.total_progress = 0
-                    self.queue.insert(0, job)
-                    logger.info(f"[SCHEDULER] '{job.repo_id}' in Scheduler-Queue verschoben")
-                elif self._cancel_requested:
-                    job.status = 'cancelled'
-                    logger.info(f"[CANCELLED] Job abgebrochen: '{job.repo_id}'")
-                elif job.status != 'error':
-                    job.status = 'completed'
-                    logger.info(f"[COMPLETED] Job abgeschlossen: '{job.repo_id}' ({job.total_files} Datei(en))")
 
-                if self.current_job == job:
-                    self.current_job = None
-                self._save_queue()
+                    local_dir = os.path.join(DOWNLOAD_DIR, job.repo_id)
+                    local_path = os.path.realpath(os.path.join(local_dir, filename.replace("/", os.sep)))
+                    if not local_path.startswith(os.path.realpath(DOWNLOAD_DIR)):
+                        logger.error(f"[SECURITY] Path-Traversal in Dateiname blockiert: '{filename}'")
+                        continue
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+                    url = hf_hub_url(job.repo_id, filename)
+                    file_done = False
+
+                    for attempt, retry_delay in enumerate(_FILE_RETRY_DELAYS + [None], start=1):
+                        if self._cancel_requested:
+                            break
+                        try:
+                            # Re-read existing size on every attempt so resume picks up
+                            # exactly where the last attempt left off.
+                            existing_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+                            req_headers = {}
+                            if existing_size > 0:
+                                req_headers['Range'] = f'bytes={existing_size}-'
+                            if HF_TOKEN:
+                                req_headers['Authorization'] = f'Bearer {HF_TOKEN}'
+
+                            with requests.get(url, stream=True, timeout=30, headers=req_headers) as r:
+                                # 416 = Datei bereits vollständig vorhanden
+                                if r.status_code == 416:
+                                    logger.info(f"[SKIP] ({i + 1}/{job.total_files}) '{filename}' – bereits vollständig, übersprungen")
+                                    job.current_file_progress = 100
+                                    job.total_progress = ((i + 1) / job.total_files) * 100
+                                    file_done = True
+                                    break
+
+                                r.raise_for_status()
+
+                                if r.status_code == 206:
+                                    remaining  = int(r.headers.get('content-length', 0))
+                                    total_size = existing_size + remaining
+                                    downloaded = existing_size
+                                    file_mode  = 'ab'
+                                    size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
+                                    logger.info(f"[RESUME] ({i + 1}/{job.total_files}) '{filename}' | "
+                                                f"Fortsetze ab {_fmt_size(existing_size)} / {size_str}")
+                                else:
+                                    total_size = int(r.headers.get('content-length', 0))
+                                    downloaded = 0
+                                    file_mode  = 'wb'
+                                    size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
+                                    if existing_size > 0:
+                                        logger.warning(f"[RESTART] Server unterstützt kein Resume – "
+                                                       f"'{filename}' wird neu gestartet (vorher: {_fmt_size(existing_size)})")
+                                    else:
+                                        logger.info(f"[FILE] ({i + 1}/{job.total_files}) '{filename}' | {size_str}")
+
+                                last_logged_pct = int((downloaded / total_size * 100) // 25) * 25 if total_size > 0 else -1
+                                with open(local_path, file_mode) as f:
+                                    for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
+                                        if self._cancel_requested: break
+                                        self._pause_event.wait()
+                                        if self._cancel_requested: break
+                                        if chunk:
+                                            f.write(chunk)
+                                            downloaded += len(chunk)
+                                            if total_size > 0:
+                                                job.current_file_progress = (downloaded / total_size) * 100
+                                                job.total_progress = ((i + (downloaded / total_size)) / job.total_files) * 100
+                                                pct = int(job.current_file_progress // 25) * 25
+                                                if pct > last_logged_pct and pct > 0:
+                                                    last_logged_pct = pct
+                                                    logger.info(f"[PROGRESS] '{filename}' – {pct}% "
+                                                                f"({_fmt_size(downloaded)} / {size_str}) | "
+                                                                f"Gesamt: {job.total_progress:.1f}%")
+
+                            if self._cancel_requested:
+                                logger.info(f"[CANCEL] '{filename}' unterbrochen bei {_fmt_size(downloaded)} – "
+                                            f"Teildatei bleibt für späteres Resume erhalten")
+                                break
+                            logger.info(f"[DONE] '{filename}' vollständig heruntergeladen ({_fmt_size(downloaded)})")
+                            file_done = True
+                            break  # success — move on to next file
+
+                        except _NET_ERRORS as e:
+                            if self._cancel_requested:
+                                break
+                            if retry_delay is not None:
+                                logger.warning(f"[RETRY] Netzwerkfehler bei '{filename}' "
+                                               f"(Versuch {attempt}/{len(_FILE_RETRY_DELAYS)}): {e} – "
+                                               f"Retry in {retry_delay}s (Resume ab Teildatei)")
+                                # Sleep interruptibly so cancel still works
+                                for _ in range(retry_delay):
+                                    if self._cancel_requested: break
+                                    time.sleep(1)
+                            else:
+                                logger.error(f"[ERROR] '{filename}' nach {len(_FILE_RETRY_DELAYS)} Retries aufgegeben: {e}")
+                                job.status = 'error'
+                                job.error_message = f"Network error after {len(_FILE_RETRY_DELAYS)} retries: {e}"
+
+                        except Exception as e:
+                            if not self._cancel_requested:
+                                job.status = 'error'
+                                job.error_message = f"Failed to download {filename}: {e}"
+                                logger.error(f"[ERROR] Fehler beim Download von '{filename}': {e}")
+                            break  # non-network error — don't retry
+
+                    if job.status == 'error' or self._cancel_requested:
+                        break
+
+                with self._lock:
+                    if self._reschedule_current:
+                        # Re-queue as scheduled job instead of cancelling
+                        self._reschedule_current = False
+                        self._cancel_requested = False
+                        job.status = 'queued'
+                        job.current_file_index = 0
+                        job.current_file = ""
+                        job.current_file_progress = 0
+                        job.total_progress = 0
+                        self.queue.insert(0, job)
+                        logger.info(f"[SCHEDULER] '{job.repo_id}' in Scheduler-Queue verschoben")
+                    elif self._cancel_requested:
+                        job.status = 'cancelled'
+                        logger.info(f"[CANCELLED] Job abgebrochen: '{job.repo_id}'")
+                    elif job.status != 'error':
+                        job.status = 'completed'
+                        logger.info(f"[COMPLETED] Job abgeschlossen: '{job.repo_id}' ({job.total_files} Datei(en))")
+
+                    if self.current_job == job:
+                        self.current_job = None
+                    self._save_queue()
+        finally:
+            with self._lock:
+                self._worker_running = False
 
 
 download_manager = DownloadManager()
@@ -756,13 +763,14 @@ def set_scheduler():
         with dm._lock:
             has_waiting = any(j.scheduled for j in dm.queue)
         if has_waiting:
-            if not dm._download_thread or not dm._download_thread.is_alive():
-                # Worker not running — start it
-                dm._download_thread = threading.Thread(target=dm._download_worker, daemon=True)
-                dm._download_thread.start()
-            else:
-                # Worker is sleeping — wake it up immediately so it re-evaluates the window
-                dm._wakeup_event.set()
+            with dm._lock:
+                if not dm._worker_running:
+                    dm._worker_running = True
+                    dm._download_thread = threading.Thread(target=dm._download_worker, daemon=True)
+                    dm._download_thread.start()
+                else:
+                    # Worker is sleeping — wake it up immediately so it re-evaluates the window
+                    dm._wakeup_event.set()
         return jsonify({"message": "Scheduler updated.", **download_manager.scheduler.to_dict()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
