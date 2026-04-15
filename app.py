@@ -278,7 +278,8 @@ class DownloadManager:
         while True:
             time.sleep(30)
             in_window = self.scheduler.is_in_window()
-            job = self.current_job
+            with self._lock:
+                job = self.current_job
             if job and job.scheduled:
                 if in_window and not prev_in_window and job.status == 'paused':
                     logger.info(f"[SCHEDULER] Zeitfenster geöffnet – Resume: '{job.repo_id}'")
@@ -328,17 +329,19 @@ class DownloadManager:
         return True, "Added to download queue."
 
     def pause(self):
-        if self.current_job and self.current_job.status == 'downloading':
-            self._pause_event.clear()
-            self.current_job.status = 'paused'
-            logger.info(f"[PAUSE] Download pausiert: '{self.current_job.repo_id}' "
-                        f"(Datei {self.current_job.current_file_index + 1}/{self.current_job.total_files})")
+        with self._lock:
+            if self.current_job and self.current_job.status == 'downloading':
+                self._pause_event.clear()
+                self.current_job.status = 'paused'
+                logger.info(f"[PAUSE] Download pausiert: '{self.current_job.repo_id}' "
+                            f"(Datei {self.current_job.current_file_index + 1}/{self.current_job.total_files})")
 
     def resume(self):
-        if self.current_job and self.current_job.status == 'paused':
-            self.current_job.status = 'downloading'
-            self._pause_event.set()
-            logger.info(f"[RESUME] Download fortgesetzt: '{self.current_job.repo_id}'")
+        with self._lock:
+            if self.current_job and self.current_job.status == 'paused':
+                self.current_job.status = 'downloading'
+                self._pause_event.set()
+                logger.info(f"[RESUME] Download fortgesetzt: '{self.current_job.repo_id}'")
 
     def cancel(self):
         with self._lock:
