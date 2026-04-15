@@ -216,7 +216,10 @@ class DownloadManager:
         self.scheduler = SchedulerConfig()
         self.scheduler.load(os.path.join(DATA_DIR, "scheduler.json"))
         self._wakeup_event = threading.Event()
+        self._reschedule_current = False
         self._load_queue()
+        # Monitor thread: auto-pause/resume scheduled jobs when window opens/closes
+        threading.Thread(target=self._scheduler_monitor, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Queue persistence
@@ -268,6 +271,35 @@ class DownloadManager:
                 self._download_thread.start()
         except Exception as exc:
             logger.warning(f"[QUEUE] Queue-State konnte nicht geladen werden: {exc}")
+
+    def _scheduler_monitor(self):
+        """Background thread: auto-pause/resume the current job when the scheduler window opens or closes."""
+        prev_in_window = self.scheduler.is_in_window()
+        while True:
+            time.sleep(30)
+            in_window = self.scheduler.is_in_window()
+            job = self.current_job
+            if job and job.scheduled:
+                if in_window and not prev_in_window and job.status == 'paused':
+                    logger.info(f"[SCHEDULER] Zeitfenster geöffnet – Resume: '{job.repo_id}'")
+                    self.resume()
+                elif not in_window and prev_in_window and job.status == 'downloading':
+                    logger.info(f"[SCHEDULER] Zeitfenster beendet – Pause: '{job.repo_id}'")
+                    self.pause()
+            prev_in_window = in_window
+
+    def move_current_to_scheduler(self):
+        """Cancels the active download and re-queues it as a scheduled job."""
+        with self._lock:
+            if not self.current_job:
+                return False, "No active download."
+            if not self.scheduler.enabled:
+                return False, "Scheduler is not enabled."
+            self.current_job.scheduled = True
+            self._reschedule_current = True
+            self._cancel_requested = True
+            self._pause_event.set()  # unpause so worker can process the cancel
+        return True, f"'{self.current_job.repo_id}' wird in Scheduler-Queue verschoben."
 
     def add_to_queue(self, repo_id, files, scheduled=False):
         with self._lock:
@@ -527,17 +559,27 @@ class DownloadManager:
                     break
 
             with self._lock:
-                if self._cancel_requested:
+                if self._reschedule_current:
+                    # Re-queue as scheduled job instead of cancelling
+                    self._reschedule_current = False
+                    self._cancel_requested = False
+                    job.status = 'queued'
+                    job.current_file_index = 0
+                    job.current_file = ""
+                    job.current_file_progress = 0
+                    job.total_progress = 0
+                    self.queue.insert(0, job)
+                    logger.info(f"[SCHEDULER] '{job.repo_id}' in Scheduler-Queue verschoben")
+                elif self._cancel_requested:
                     job.status = 'cancelled'
                     logger.info(f"[CANCELLED] Job abgebrochen: '{job.repo_id}'")
                 elif job.status != 'error':
                     job.status = 'completed'
                     logger.info(f"[COMPLETED] Job abgeschlossen: '{job.repo_id}' ({job.total_files} Datei(en))")
 
-                # After job is done (completed, errored, or cancelled), this job is no longer the current one
                 if self.current_job == job:
                     self.current_job = None
-                self._save_queue()  # remove finished job from persisted state
+                self._save_queue()
 
 
 download_manager = DownloadManager()
@@ -749,6 +791,14 @@ def download_status():
     """Returns the current download status."""
     return jsonify(download_manager.get_status())
 
+@app.route("/api/current/to-scheduler", methods=["POST"])
+def current_to_scheduler():
+    """Moves the currently active download into the scheduler queue."""
+    success, message = download_manager.move_current_to_scheduler()
+    if not success:
+        return jsonify({"error": message}), 400
+    return jsonify({"message": message})
+
 @app.route("/pause-download", methods=["POST"])
 def pause_download():
     """Pauses the current download."""
@@ -781,6 +831,17 @@ def remove_queue_item(index):
     """Removes an item from the queue."""
     download_manager.remove_from_queue(index)
     return jsonify({"message": "Item removed from queue."})
+
+@app.route("/api/queue/start-now/<int:index>", methods=["POST"])
+def queue_start_now(index):
+    """Removes the scheduled flag from a queued job so it starts immediately."""
+    with download_manager._lock:
+        if 0 <= index < len(download_manager.queue):
+            download_manager.queue[index].scheduled = False
+            download_manager._save_queue()
+            download_manager._wakeup_event.set()
+            return jsonify({"message": "Job will start immediately."})
+    return jsonify({"error": "Invalid queue index."}), 400
 
 
 @app.route("/completed")

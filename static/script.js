@@ -262,6 +262,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
                 <span class="queue-status-badge ${job.scheduled ? 'badge-scheduled' : ''}">${escapeHtml(job.status)}</span>
                 <div class="queue-item-controls">
+                    ${job.scheduled ? `<button class="queue-start-now-btn" data-index="${index}"
+                            aria-label="Start now" title="Start immediately">▶</button>` : ''}
                     <button class="queue-move-btn move-up-btn" data-index="${index}"
                             ${index === 0 ? 'disabled' : ''} aria-label="Move up" title="Move up">▲</button>
                     <button class="queue-move-btn move-down-btn" data-index="${index}"
@@ -543,16 +545,22 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Page title
                 document.title = `↓ ${pct}% | HF Downloader`;
 
+                const toSchedulerBtn = document.getElementById('to-scheduler-btn');
+                const schedulerEnabled = status.scheduler && status.scheduler.enabled;
+
                 if (status.status === 'downloading') {
                     container.classList.add('is-downloading');
                     if (badge) { badge.textContent = 'DOWNLOADING'; badge.className = 'badge badge-info badge-pulse'; }
                     document.getElementById('pause-btn').style.display  = 'inline-flex';
                     document.getElementById('resume-btn').style.display = 'none';
+                    // Show "To Scheduler" only if scheduler is enabled and job is not already scheduled
+                    if (toSchedulerBtn) toSchedulerBtn.style.display = schedulerEnabled ? 'inline-flex' : 'none';
                 } else {
                     container.classList.add('is-paused');
                     if (badge) { badge.textContent = 'PAUSED'; badge.className = 'badge badge-warning'; }
                     document.getElementById('pause-btn').style.display  = 'none';
                     document.getElementById('resume-btn').style.display = 'inline-flex';
+                    if (toSchedulerBtn) toSchedulerBtn.style.display = 'none';
                 }
             } else {
                 container.style.display = 'none';
@@ -846,6 +854,8 @@ document.addEventListener("DOMContentLoaded", function () {
             url = `/api/queue/move/${index}/down`;
         } else if (target.classList.contains('remove-btn')) {
             url = `/api/queue/remove/${index}`;
+        } else if (target.classList.contains('queue-start-now-btn')) {
+            url = `/api/queue/start-now/${index}`;
         } else {
             return;
         }
@@ -868,6 +878,16 @@ document.addEventListener("DOMContentLoaded", function () {
         () => fetch("/resume-download", { method: "POST" }));
     document.getElementById('cancel-btn').addEventListener('click',
         () => fetch("/cancel-download", { method: "POST" }));
+    document.getElementById('to-scheduler-btn').addEventListener('click', async () => {
+        try {
+            const response = await fetch("/api/current/to-scheduler", { method: "POST" });
+            const result   = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            showToast('info', 'Moved to Scheduler', result.message);
+        } catch (err) {
+            showToast('error', 'Error', err.message || 'Could not move to scheduler.');
+        }
+    });
 
     // ============================================================
     // EVENT LISTENERS — Completed Downloads
@@ -945,6 +965,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // ============================================================
     // SCHEDULER UI
     // ============================================================
+    let schedulerDirty = false;  // true = user has unsaved changes → ignore poll updates
+
+    // Mark dirty when user touches any scheduler control
+    document.querySelectorAll('#scheduler-enabled, #scheduler-start, #scheduler-end, .day-pill input')
+        .forEach(el => el.addEventListener('change', () => { schedulerDirty = true; }));
+
     function updateSchedulerUI(sched) {
         if (!sched) return;
         const enabledCb  = document.getElementById('scheduler-enabled');
@@ -953,14 +979,15 @@ document.addEventListener("DOMContentLoaded", function () {
         const badge      = document.getElementById('scheduler-status-badge');
         const nextWin    = document.getElementById('scheduler-next-window');
 
-        if (enabledCb)  enabledCb.checked   = sched.enabled;
-        if (startInput) startInput.value     = sched.start;
-        if (endInput)   endInput.value       = sched.end;
-
-        // Day checkboxes
-        document.querySelectorAll('.day-pill input[type="checkbox"]').forEach(cb => {
-            cb.checked = sched.days.includes(parseInt(cb.value));
-        });
+        // Only update form fields if user has no unsaved changes
+        if (!schedulerDirty) {
+            if (enabledCb)  enabledCb.checked = sched.enabled;
+            if (startInput) startInput.value  = sched.start;
+            if (endInput)   endInput.value    = sched.end;
+            document.querySelectorAll('.day-pill input[type="checkbox"]').forEach(cb => {
+                cb.checked = sched.days.includes(parseInt(cb.value));
+            });
+        }
 
         // Status badge
         if (badge) {
@@ -1018,6 +1045,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
+                schedulerDirty = false;
                 updateSchedulerUI({ ...result, in_window: result.in_window, minutes_until_window: result.minutes_until_window });
                 showToast('success', 'Scheduler saved', enabled
                     ? `Active ${start}–${end}`
