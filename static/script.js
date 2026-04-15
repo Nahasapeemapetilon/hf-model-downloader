@@ -723,6 +723,21 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // No slash → treat as org/user → open Explore with pre-filled search
+        if (!currentRepoId.includes('/')) {
+            if (modelSearchInput) modelSearchInput.value = currentRepoId;
+            browseState.query = currentRepoId;
+            // Open Explore section if collapsed
+            if (trendingContent.style.display === 'none') {
+                trendingToggle.click();
+            }
+            loadBrowseResults();
+            trendingContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            repoIdInput.value = '';
+            currentRepoId = '';
+            return;
+        }
+
         const btn       = document.getElementById('list-files-btn');
         const label     = btn.querySelector('.btn-label');
         const spinner   = document.getElementById('list-files-spinner');
