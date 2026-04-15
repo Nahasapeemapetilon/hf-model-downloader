@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>hf-model-downloader</Name>
-  <Repository>DOCKERHUB_USER/hf-model-downloader</Repository>
+  <Repository>mygithub217/hf-model-downloader</Repository>
   <Registry>https://registry.hub.docker.com</Registry>
   <Network>bridge</Network>
   <MyIP/>

@@ -30,7 +30,7 @@ docker run -d \
   --name hf-model-downloader \
   -p 5000:5000 \
   -v /path/to/downloads:/app/downloads \
-  DOCKERHUB_USER/hf-model-downloader:latest
+  mygithub217/hf-model-downloader:latest
 ```
 
 Then open `http://localhost:5000` in your browser.
@@ -74,7 +74,7 @@ If you want to build the image directly on your Unraid server:
 # Copy project files to Unraid first, then:
 ssh root@<UNRAID-IP>
 cd /mnt/user/appdata/hf-model-downloader/src
-docker build -t DOCKERHUB_USER/hf-model-downloader .
+docker build -t mygithub217/hf-model-downloader .
 ```
 
 ---
