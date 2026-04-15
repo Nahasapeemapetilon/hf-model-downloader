@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const completedListUl        = document.getElementById("completed-list");
     const themeToggle            = document.getElementById("theme-toggle");
 
-    let progressInterval  = null;
+    let progressTimeout   = null;
     let currentRepoId     = '';
     let trendingLoaded    = false;
 
@@ -488,15 +488,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // POLLING & DOWNLOAD STATUS
     // ============================================================
     function startPollingProgress() {
-        if (!progressInterval) {
-            progressInterval = setInterval(updateDownloadProgress, 1000);
+        if (!progressTimeout) {
             updateDownloadProgress();
         }
     }
 
     function stopPollingProgress() {
-        clearInterval(progressInterval);
-        progressInterval = null;
+        clearTimeout(progressTimeout);
+        progressTimeout = null;
 
         const container = document.getElementById('download-status-container');
         if (container) container.style.display = 'none';
@@ -514,11 +513,6 @@ document.addEventListener("DOMContentLoaded", function () {
             updateStatusPill(status.status);
             renderQueue(status.queue);
             if (status.scheduler) updateSchedulerUI(status.scheduler);
-
-            if (status.status === 'idle' && (!status.queue || status.queue.length === 0)) {
-                stopPollingProgress();
-                return;
-            }
 
             const container = document.getElementById('download-status-container');
             const badge     = document.getElementById('download-status-badge');
@@ -569,6 +563,19 @@ document.addEventListener("DOMContentLoaded", function () {
             if (status.error) {
                 showToast('error', 'Download Failed', status.error);
             }
+
+            // Determine next poll interval based on status
+            let nextInterval;
+            if (status.status === 'idle' && (!status.queue || status.queue.length === 0)) {
+                stopPollingProgress();
+                return;
+            } else if (status.status === 'downloading' || status.status === 'paused') {
+                nextInterval = 1000; // Fast polling during active download
+            } else {
+                nextInterval = 5000; // Slow polling when idle but queue has items
+            }
+
+            progressTimeout = setTimeout(updateDownloadProgress, nextInterval);
 
         } catch (error) {
             console.error("Error fetching status:", error);
