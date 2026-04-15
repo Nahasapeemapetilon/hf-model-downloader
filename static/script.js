@@ -750,6 +750,15 @@ document.addEventListener("DOMContentLoaded", function () {
         const spinner   = document.getElementById('list-files-spinner');
         const errorEl   = document.getElementById('finder-error');
         const errorText = document.getElementById('finder-error-text');
+
+        // Validate repo ID format: org/repo — both parts must be valid HF identifiers
+        const HF_REPO_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+        if (!HF_REPO_RE.test(currentRepoId)) {
+            errorText.textContent = 'Invalid repo ID. Expected format: owner/repo-name';
+            errorEl.style.display = 'flex';
+            repoIdInput.focus();
+            return;
+        }
         const infoBar   = document.getElementById('repo-info-bar');
 
         btn.disabled             = true;
