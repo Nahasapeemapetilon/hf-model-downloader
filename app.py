@@ -464,7 +464,13 @@ class DownloadManager:
                     if not local_path.startswith(os.path.realpath(DOWNLOAD_DIR)):
                         logger.error(f"[SECURITY] Path-Traversal in Dateiname blockiert: '{filename}'")
                         continue
-                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    try:
+                        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    except OSError as e:
+                        logger.error(f"[ERROR] Verzeichnis konnte nicht erstellt werden für '{filename}': {e}")
+                        job.status = 'error'
+                        job.error_message = f"Cannot create directory: {e}"
+                        break
 
                     url = hf_hub_url(job.repo_id, filename)
                     file_done = False
