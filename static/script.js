@@ -755,6 +755,7 @@ document.addEventListener("DOMContentLoaded", function () {
             fileSelectionContainer.style.display = 'block';
             if (fileFilterInput) fileFilterInput.value = '';
             renderFileList(files);
+            fileSelectionContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         } catch (error) {
             errorText.textContent = error.message;
