@@ -489,7 +489,7 @@ class DownloadManager:
                             if HF_TOKEN:
                                 req_headers['Authorization'] = f'Bearer {HF_TOKEN}'
 
-                            with requests.get(url, stream=True, timeout=30, headers=req_headers) as r:
+                            with requests.get(url, stream=True, timeout=(30, 60), headers=req_headers) as r:
                                 # 416 = Datei bereits vollständig vorhanden
                                 if r.status_code == 416:
                                     logger.info(f"[SKIP] ({i + 1}/{job.total_files}) '{filename}' – bereits vollständig, übersprungen")
