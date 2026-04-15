@@ -1,0 +1,158 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>hf-model-downloader</Name>
+  <Repository>DOCKERHUB_USER/hf-model-downloader</Repository>
+  <Registry>https://registry.hub.docker.com</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Nahasapeemapetilon/hf-model-downloader/issues</Support>
+  <Project>https://github.com/Nahasapeemapetilon/hf-model-downloader</Project>
+  <Overview>Web UI to browse and download models from HuggingFace Hub. Features: file browser, download queue with pause/resume/cancel, sync status comparison, explore/search with tag and sort filters, optional Basic Auth, and HF Token support for private repos.</Overview>
+  <Category>Tools:</Category>
+  <WebUI>http://[IP]:[PORT:5000]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Nahasapeemapetilon/hf-model-downloader/main/hf-model-downloader.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Nahasapeemapetilon/hf-model-downloader/main/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>0</DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Description>Web UI to browse and download models from HuggingFace Hub. Features: file browser, download queue with pause/resume/cancel, sync status comparison, explore/search with tag and sort filters, optional Basic Auth, and HF Token support for private repos.</Description>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>5000</HostPort>
+        <ContainerPort>5000</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/hf-model-downloader</HostDir>
+      <ContainerDir>/app/data</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+    <Volume>
+      <HostDir>/mnt/user/appdata/hf-model-downloader/downloads</HostDir>
+      <ContainerDir>/app/downloads</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+  <Environment>
+    <Variable>
+      <Value>/app/data</Value>
+      <Name>DATA_DIR</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value/>
+      <Name>HF_TOKEN</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value/>
+      <Name>AUTH_USER</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value/>
+      <Name>AUTH_PASS</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>false</Value>
+      <Name>FLASK_DEBUG</Name>
+      <Mode/>
+    </Variable>
+  </Environment>
+  <Labels/>
+
+  <!-- Port -->
+  <Config Name="WebUI Port"
+          Target="5000"
+          Default="5000"
+          Mode="tcp"
+          Description="Port for the web interface."
+          Type="Port"
+          Display="always"
+          Required="true"
+          Mask="false">5000</Config>
+
+  <!-- Volumes -->
+  <Config Name="App Data Path"
+          Target="/app/data"
+          Default="/mnt/user/appdata/hf-model-downloader"
+          Mode="rw"
+          Description="Host directory for app state (queue persistence, future settings). Should point to your appdata folder."
+          Type="Path"
+          Display="always"
+          Required="true"
+          Mask="false">/mnt/user/appdata/hf-model-downloader</Config>
+
+  <Config Name="Downloads Path"
+          Target="/app/downloads"
+          Default="/mnt/user/appdata/hf-model-downloader/downloads"
+          Mode="rw"
+          Description="Host directory where downloaded models are stored. Persists across container restarts."
+          Type="Path"
+          Display="always"
+          Required="true"
+          Mask="false">/mnt/user/appdata/hf-model-downloader/downloads</Config>
+
+  <!-- Environment Variables -->
+  <Config Name="Data Directory"
+          Target="DATA_DIR"
+          Default="/app/data"
+          Mode=""
+          Description="Internal container path for app state (queue persistence). Change only if you know what you are doing."
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Mask="false">/app/data</Config>
+
+  <Config Name="HuggingFace Token"
+          Target="HF_TOKEN"
+          Default=""
+          Mode=""
+          Description="Optional. HuggingFace API token (read access). Required for private or gated repositories (e.g. Llama, Gemma). Leave empty for public repos only."
+          Type="Variable"
+          Display="always"
+          Required="false"
+          Mask="true"></Config>
+
+  <Config Name="Basic Auth Username"
+          Target="AUTH_USER"
+          Default=""
+          Mode=""
+          Description="Optional. Username for Basic Auth. If set, AUTH_PASS must also be set. Leave both empty to disable authentication (open access on your local network)."
+          Type="Variable"
+          Display="always"
+          Required="false"
+          Mask="false"></Config>
+
+  <Config Name="Basic Auth Password"
+          Target="AUTH_PASS"
+          Default=""
+          Mode=""
+          Description="Optional. Password for Basic Auth. Only active when AUTH_USER is also set."
+          Type="Variable"
+          Display="always"
+          Required="false"
+          Mask="true"></Config>
+
+  <Config Name="Flask Debug Mode"
+          Target="FLASK_DEBUG"
+          Default="false"
+          Mode=""
+          Description="Enable Flask debug mode. Set to 'true' only for local development — NEVER in production, as it allows remote code execution."
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Mask="false">false</Config>
+
+</Container>

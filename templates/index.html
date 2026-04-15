@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HuggingFace Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<!-- ============================================================
+     TOPBAR
+     ============================================================ -->
+<header class="topbar">
+    <div class="topbar-left">
+        <img src="{{ url_for('static', filename='icon.png') }}"
+             alt="HF Model Downloader"
+             class="topbar-logo"
+             width="32" height="32">
+        <span class="topbar-title">HF Downloader</span>
+    </div>
+    <div class="topbar-right">
+        <div id="global-status-pill" class="status-pill status-idle" role="status" aria-live="polite">
+            <span class="status-dot"></span>
+            <span class="status-text">Idle</span>
+        </div>
+        <button class="btn btn-ghost btn-icon" id="theme-toggle"
+                aria-label="Switch to light theme" title="Toggle light/dark theme">
+            <!-- Moon icon (shown in dark mode) -->
+            <svg id="icon-moon" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+            <!-- Sun icon (shown in light mode) -->
+            <svg id="icon-sun" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"
+                 style="display:none;">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1"  x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22"  y1="4.22"  x2="5.64"  y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1"  y1="12" x2="3"  y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22"  y1="19.78" x2="5.64"  y2="18.36"/>
+                <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<!-- ============================================================
+     APP LAYOUT
+     ============================================================ -->
+<div class="app-layout">
+
+    <!-- --------------------------------------------------------
+         SIDEBAR (Left Panel)
+         -------------------------------------------------------- -->
+    <aside class="sidebar">
+
+        <!-- === Sektion 1: Repository Finder === -->
+        <section class="sidebar-section" id="finder-section">
+            <div class="section-heading">
+                <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <h2>Find Repository</h2>
+            </div>
+
+            <form id="list-files-form" class="finder-form">
+                <div class="input-group">
+                    <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="repo-id-input" class="input"
+                           placeholder="e.g. meta-llama/Llama-3.2-1B"
+                           autocomplete="off" spellcheck="false">
+                </div>
+
+                <div id="finder-error" class="finder-error" style="display:none;" role="alert">
+                    <svg class="error-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span id="finder-error-text"></span>
+                </div>
+
+                <button type="submit" id="list-files-btn" class="btn btn-primary btn-full">
+                    <svg width="15" height="15" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <span class="btn-label">List Files</span>
+                    <span class="spinner" id="list-files-spinner" style="display:none;" aria-hidden="true"></span>
+                </button>
+            </form>
+
+            <div id="repo-info-bar" class="repo-info-bar" style="display:none;">
+                <svg class="repo-icon" width="14" height="14" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+                <span id="repo-title" class="repo-name truncate"></span>
+                <button class="btn btn-ghost btn-icon btn-sm" id="clear-repo-btn"
+                        title="Clear" aria-label="Clear repository">
+                    <svg width="12" height="12" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- === Sektion 1b: Explore / Search Models === -->
+        <section class="sidebar-section" id="trending-section">
+            <button class="trending-toggle" id="trending-toggle"
+                    type="button" aria-expanded="false"
+                    aria-controls="trending-content">
+                <div class="section-heading" style="margin:0;padding:0;border:0;flex:1;">
+                    <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                        <polyline points="17 6 23 6 23 12"/>
+                    </svg>
+                    <h2>Explore Models</h2>
+                </div>
+                <svg class="trending-chevron" width="12" height="12" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+
+            <div id="trending-content" class="trending-content" style="display:none;">
+
+                <!-- Search input -->
+                <div class="input-group">
+                    <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="model-search-input" class="input input-sm"
+                           placeholder="Search by name…" autocomplete="off" spellcheck="false">
+                </div>
+
+                <!-- Tag filter pills -->
+                <div class="tag-filter-row" id="tag-filter-row" role="group" aria-label="Filter by type">
+                    <button class="tag-filter-btn is-active" data-tag="" type="button">All</button>
+                    <button class="tag-filter-btn" data-tag="text-generation" type="button">Text Gen</button>
+                    <button class="tag-filter-btn" data-tag="text-to-image" type="button">Image</button>
+                    <button class="tag-filter-btn" data-tag="automatic-speech-recognition" type="button">ASR</button>
+                    <button class="tag-filter-btn" data-tag="text-to-speech" type="button">TTS</button>
+                    <button class="tag-filter-btn" data-tag="translation" type="button">Translate</button>
+                    <button class="tag-filter-btn" data-tag="feature-extraction" type="button">Embed</button>
+                    <button class="tag-filter-btn" data-tag="image-classification" type="button">Classify</button>
+                </div>
+
+                <!-- Sort controls -->
+                <div class="sort-row" id="sort-row" role="group" aria-label="Sort by">
+                    <button class="sort-btn is-active" data-sort="downloads" type="button">Downloads</button>
+                    <button class="sort-btn" data-sort="likes" type="button">Likes</button>
+                    <button class="sort-btn" data-sort="lastModified" type="button">Recent</button>
+                </div>
+
+                <!-- Results -->
+                <div id="trending-list" class="trending-list" aria-live="polite" aria-label="Model results">
+                    <div class="trending-empty">
+                        <span class="spinner" aria-hidden="true"></span>
+                        Loading…
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- === Sektion 2: File Selection === -->
+        <section class="sidebar-section" id="file-selection-container" style="display:none;">
+            <div class="section-heading">
+                <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <polyline points="13 2 13 9 20 9"/>
+                </svg>
+                <h2>Select Files</h2>
+            </div>
+
+            <form id="download-selection-form" class="file-selection-form">
+
+                <div class="input-group">
+                    <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="4" y1="6" x2="20" y2="6"/>
+                        <line x1="4" y1="12" x2="14" y2="12"/>
+                        <line x1="4" y1="18" x2="18" y2="18"/>
+                    </svg>
+                    <input type="text" id="file-filter-input" class="input input-sm"
+                           placeholder="Filter files…">
+                </div>
+
+                <div class="file-controls">
+                    <div class="file-controls-left">
+                        <button type="button" id="select-all-btn" class="btn btn-secondary btn-sm">All</button>
+                        <button type="button" id="deselect-all-btn" class="btn btn-ghost btn-sm">None</button>
+                    </div>
+                    <div id="selection-summary" class="selection-summary">
+                        <span id="selected-count">0</span> files
+                        <span class="summary-sep">·</span>
+                        <span id="selected-size">0 B</span>
+                    </div>
+                </div>
+
+                <div id="file-list" class="file-list"></div>
+
+                <button type="submit" id="start-download-btn"
+                        class="btn btn-primary btn-full" disabled>
+                    <svg width="15" height="15" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span class="btn-label">Start Download</span>
+                    <span id="download-btn-count" class="badge badge-accent" style="display:none;"></span>
+                </button>
+
+            </form>
+        </section>
+
+    </aside>
+
+    <!-- --------------------------------------------------------
+         MAIN CONTENT (Right Panel)
+         -------------------------------------------------------- -->
+    <main class="main-content" id="main-content">
+
+        <!-- === Active Download Card === -->
+        <div id="download-status-container" class="card download-card"
+             style="display:none;" aria-live="polite" aria-label="Download progress">
+            <div class="download-card-indicator"></div>
+            <div class="download-card-inner">
+                <div class="card-header">
+                    <div class="download-card-title">
+                        <svg class="section-icon" width="16" height="16" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        <div style="min-width:0;">
+                            <div id="current-repo" class="download-repo-name truncate"></div>
+                            <div id="current-file" class="download-file-name truncate"></div>
+                        </div>
+                    </div>
+                    <span id="download-status-badge" class="badge badge-info badge-pulse">DOWNLOADING</span>
+                </div>
+                <div class="card-body">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-track">
+                            <div id="progress-bar-fill" class="progress-bar-fill" style="width:0%"></div>
+                        </div>
+                        <div class="progress-info">
+                            <span id="progress-pct-text" class="progress-pct">0%</span>
+                            <span id="file-counter" class="progress-counter">File 0 of 0</span>
+                        </div>
+                    </div>
+                    <!-- Legacy element — kept for JS compatibility -->
+                    <progress id="total-progress" value="0" max="100" class="sr-only" aria-hidden="true"></progress>
+                    <div class="download-controls">
+                        <button id="pause-btn" class="btn btn-secondary btn-sm" aria-label="Pause Download">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="4" width="4" height="16"/>
+                                <rect x="14" y="4" width="4" height="16"/>
+                            </svg>
+                            Pause
+                        </button>
+                        <button id="resume-btn" class="btn btn-secondary btn-sm"
+                                style="display:none;" aria-label="Resume Download">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            Resume
+                        </button>
+                        <button id="cancel-btn" class="btn btn-danger btn-sm" aria-label="Cancel Download">
+                            <svg width="14" height="14" viewBox="0 0 24 24"
+                                 fill="none" stroke="currentColor" stroke-width="2.5"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === Download Queue === -->
+        <div id="download-queue-container" class="card" style="display:none;" aria-label="Download queue">
+            <div class="card-header">
+                <div class="flex items-center gap-2">
+                    <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="8" y1="6"  x2="21" y2="6"/>
+                        <line x1="8" y1="12" x2="21" y2="12"/>
+                        <line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6"  x2="3.01" y2="6"/>
+                        <line x1="3" y1="12" x2="3.01" y2="12"/>
+                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    <h2>Download Queue</h2>
+                </div>
+                <span id="queue-count-badge" class="badge badge-neutral">0</span>
+            </div>
+            <div class="queue-body">
+                <ul id="download-queue-list" class="queue-list"></ul>
+                <div id="queue-empty" class="queue-empty" style="display:none;">
+                    <svg width="28" height="28" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="1.5"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>No further downloads queued</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- === Completed Downloads === -->
+        <section class="card completed-section" aria-label="Downloaded repositories">
+            <div class="card-header">
+                <div class="flex items-center gap-2">
+                    <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <h2>Downloaded Repos</h2>
+                </div>
+                <span id="completed-count-badge" class="badge badge-success">{{ completed_downloads|length }}</span>
+            </div>
+            <div class="completed-body">
+
+                {% if not completed_downloads %}
+                <div class="empty-state">
+                    <svg width="40" height="40" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="1.5"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <p>No downloaded repositories yet.</p>
+                    <p class="empty-hint">Use the finder on the left to start your first download.</p>
+                </div>
+                {% endif %}
+
+                <ul id="completed-list" class="repo-list">
+                    {% for repo in completed_downloads %}
+                    <li class="repo-card completed-item" data-repo="{{ repo }}">
+                        <div class="repo-card-header">
+                            <div class="repo-card-title">
+                                <svg class="repo-type-icon" width="14" height="14" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2"
+                                     stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                <span class="repo-card-name" title="{{ repo }}">{{ repo }}</span>
+                            </div>
+                            <div class="repo-card-actions">
+                                <button class="btn btn-ghost btn-icon btn-sm update-btn"
+                                        data-repo="{{ repo }}" title="Refresh sync status"
+                                        aria-label="Refresh sync status for {{ repo }}">
+                                    <svg class="refresh-icon" width="13" height="13" viewBox="0 0 24 24"
+                                         fill="none" stroke="currentColor" stroke-width="2.5"
+                                         stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <polyline points="1 20 1 14 7 14"/>
+                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                    </svg>
+                                </button>
+                                <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2"
+                                     stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="repo-card-body">
+                            <div class="sync-stats-bar" style="display:none;">
+                                <span class="sync-stat synced"><span class="sync-stat-count">0</span> synced</span>
+                                <span class="sync-stat new"><span class="sync-stat-count">0</span> new</span>
+                                <span class="sync-stat outdated"><span class="sync-stat-count">0</span> outdated</span>
+                                <span class="sync-stat local"><span class="sync-stat-count">0</span> local only</span>
+                            </div>
+                            <div class="file-skeleton flex-col" style="display:none;">
+                                <div class="skeleton skeleton-row"></div>
+                                <div class="skeleton skeleton-row"></div>
+                                <div class="skeleton skeleton-row"></div>
+                            </div>
+                            <ul class="local-file-list"></ul>
+                            <div class="local-list-controls" style="display:none;">
+                                <div class="local-controls-left">
+                                    <button class="btn btn-ghost btn-sm select-all-local-btn">All</button>
+                                    <button class="btn btn-ghost btn-sm deselect-all-local-btn">None</button>
+                                </div>
+                                <button class="btn btn-primary btn-sm download-updates-btn"
+                                        data-repo="{{ repo }}" style="display:none;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24"
+                                         fill="none" stroke="currentColor" stroke-width="2.5"
+                                         stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                    Download Updates
+                                </button>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- ============================================================
+     TOAST CONTAINER
+     ============================================================ -->
+<div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

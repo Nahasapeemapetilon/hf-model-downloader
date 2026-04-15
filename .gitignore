@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Downloads (user data — never commit)
+downloads/
+
+# App state (runtime data — never commit)
+data/
+
+# Logs
+*.log
+app.log
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+.vs/
+*.suo
+*.user
+*.iml
+*.iws
+*.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / backup
+*.bak
+*.tmp
+*.swp
+*~
+
+# Claude Code internal
+.claude/
+docs/
+CLAUDE.md
