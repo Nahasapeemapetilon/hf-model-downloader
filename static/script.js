@@ -211,8 +211,10 @@ document.addEventListener("DOMContentLoaded", function () {
         if (sizeEl)  sizeEl.textContent  = formatBytes(totalBytes);
 
         const downloadBtn  = document.getElementById('start-download-btn');
+        const scheduleBtn  = document.getElementById('schedule-download-btn');
         const countBadge   = document.getElementById('download-btn-count');
         if (downloadBtn) downloadBtn.disabled = count === 0;
+        if (scheduleBtn) scheduleBtn.disabled = count === 0;
         if (countBadge) {
             if (count > 0) {
                 countBadge.textContent   = count;
@@ -243,13 +245,22 @@ document.addEventListener("DOMContentLoaded", function () {
         queue.forEach((job, index) => {
             const li = document.createElement('li');
             li.className = 'queue-item';
+            const clockIcon = job.scheduled
+                ? `<svg class="queue-scheduled-icon" title="Scheduled" width="13" height="13" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                       <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                   </svg>`
+                : '';
             li.innerHTML = `
                 <div class="queue-position">${index + 1}</div>
                 <div class="queue-item-info">
-                    <div class="queue-repo-name truncate" title="${escapeHtml(job.repo_id)}">${escapeHtml(job.repo_id)}</div>
+                    <div class="queue-repo-name truncate" title="${escapeHtml(job.repo_id)}">
+                        ${clockIcon}${escapeHtml(job.repo_id)}
+                    </div>
                     <div class="queue-file-count">${job.total_files} file${job.total_files !== 1 ? 's' : ''}</div>
                 </div>
-                <span class="queue-status-badge">${escapeHtml(job.status)}</span>
+                <span class="queue-status-badge ${job.scheduled ? 'badge-scheduled' : ''}">${escapeHtml(job.status)}</span>
                 <div class="queue-item-controls">
                     <button class="queue-move-btn move-up-btn" data-index="${index}"
                             ${index === 0 ? 'disabled' : ''} aria-label="Move up" title="Move up">▲</button>
@@ -318,17 +329,28 @@ document.addEventListener("DOMContentLoaded", function () {
                         <button class="btn btn-ghost btn-sm select-all-local-btn">All</button>
                         <button class="btn btn-ghost btn-sm deselect-all-local-btn">None</button>
                     </div>
-                    <button class="btn btn-primary btn-sm download-updates-btn"
-                            data-repo="${escapeHtml(repo)}" style="display:none;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2.5"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Download Updates
-                    </button>
+                    <div class="local-controls-right">
+                        <button class="btn btn-primary btn-sm download-updates-btn"
+                                data-repo="${escapeHtml(repo)}" data-scheduled="false" style="display:none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.5"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Download Now
+                        </button>
+                        <button class="btn btn-secondary btn-sm schedule-updates-btn"
+                                data-repo="${escapeHtml(repo)}" data-scheduled="true" style="display:none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.5"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            Schedule
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -343,6 +365,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const statsBar     = card.querySelector('.sync-stats-bar');
         const localControls = card.querySelector('.local-list-controls');
         const downloadBtn  = card.querySelector('.download-updates-btn');
+        const scheduleBtn  = card.querySelector('.schedule-updates-btn');
         const refreshIcon  = card.querySelector('.refresh-icon');
 
         // Show skeleton
@@ -351,6 +374,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (statsBar)   statsBar.style.display = 'none';
         if (localControls) localControls.style.display = 'none';
         if (downloadBtn)   downloadBtn.style.display = 'none';
+        if (scheduleBtn)   scheduleBtn.style.display = 'none';
         if (refreshIcon)   refreshIcon.classList.add('is-loading');
 
         try {
@@ -408,6 +432,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (hasDownloadable && localControls && downloadBtn) {
                 localControls.style.display = 'flex';
                 downloadBtn.style.display   = 'inline-flex';
+                if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
             }
 
         } catch (error) {
@@ -486,6 +511,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             updateStatusPill(status.status);
             renderQueue(status.queue);
+            if (status.scheduler) updateSchedulerUI(status.scheduler);
 
             if (status.status === 'idle' && (!status.queue || status.queue.length === 0)) {
                 stopPollingProgress();
@@ -748,19 +774,17 @@ document.addEventListener("DOMContentLoaded", function () {
     // ============================================================
     // EVENT LISTENERS — File Selection
     // ============================================================
-    downloadSelectionForm.addEventListener("submit", async function (event) {
-        event.preventDefault();
+    async function submitDownload(scheduled) {
         const selectedFiles = getSelectedFiles();
         if (selectedFiles.length === 0) {
             showToast('warning', 'No files selected', 'Please select at least one file to download.');
             return;
         }
-
         try {
             const response = await fetch("/download", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ repo_id: currentRepoId, files: selectedFiles })
+                body: JSON.stringify({ repo_id: currentRepoId, files: selectedFiles, scheduled })
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
@@ -770,12 +794,28 @@ document.addEventListener("DOMContentLoaded", function () {
             repoIdInput.value = '';
             currentRepoId = '';
 
-            showToast('success', 'Added to queue', `${selectedFiles.length} file(s) queued for download.`);
+            const label = scheduled ? 'Added to scheduler' : 'Added to queue';
+            const detail = scheduled
+                ? `${selectedFiles.length} file(s) will download during the scheduled window.`
+                : `${selectedFiles.length} file(s) queued for download.`;
+            showToast('success', label, detail);
             startPollingProgress();
         } catch (error) {
             showToast('error', 'Download Error', error.message || 'An unknown error occurred.');
         }
+    }
+
+    downloadSelectionForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        await submitDownload(false);
     });
+
+    const scheduleDownloadBtn = document.getElementById('schedule-download-btn');
+    if (scheduleDownloadBtn) {
+        scheduleDownloadBtn.addEventListener('click', async () => {
+            await submitDownload(true);
+        });
+    }
 
     if (fileFilterInput) {
         fileFilterInput.addEventListener('input', function () {
@@ -859,8 +899,10 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Download updates button
-        if (target.closest('.download-updates-btn')) {
+        // Download Now / Schedule buttons on repo cards
+        const updateBtn = target.closest('.download-updates-btn') || target.closest('.schedule-updates-btn');
+        if (updateBtn) {
+            const scheduled = updateBtn.dataset.scheduled === 'true';
             const filesToDownload = Array.from(
                 fileList.querySelectorAll('.download-update-cb:checked')
             ).map(cb => cb.value);
@@ -874,13 +916,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 const response = await fetch("/download", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ repo_id: repoId, files: filesToDownload })
+                    body: JSON.stringify({ repo_id: repoId, files: filesToDownload, scheduled })
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
 
-                showToast('success', 'Added to queue',
-                    `${filesToDownload.length} file(s) queued for download.`);
+                const label  = scheduled ? 'Added to scheduler' : 'Added to queue';
+                const detail = scheduled
+                    ? `${filesToDownload.length} file(s) will download during the scheduled window.`
+                    : `${filesToDownload.length} file(s) queued for download.`;
+                showToast('success', label, detail);
                 startPollingProgress();
             } catch (error) {
                 showToast('error', 'Download Error', error.message || 'An unknown error occurred.');
@@ -896,6 +941,92 @@ document.addEventListener("DOMContentLoaded", function () {
             card.querySelectorAll('.download-update-cb').forEach(cb => cb.checked = false);
         }
     });
+
+    // ============================================================
+    // SCHEDULER UI
+    // ============================================================
+    function updateSchedulerUI(sched) {
+        if (!sched) return;
+        const enabledCb  = document.getElementById('scheduler-enabled');
+        const startInput = document.getElementById('scheduler-start');
+        const endInput   = document.getElementById('scheduler-end');
+        const badge      = document.getElementById('scheduler-status-badge');
+        const nextWin    = document.getElementById('scheduler-next-window');
+
+        if (enabledCb)  enabledCb.checked   = sched.enabled;
+        if (startInput) startInput.value     = sched.start;
+        if (endInput)   endInput.value       = sched.end;
+
+        // Day checkboxes
+        document.querySelectorAll('.day-pill input[type="checkbox"]').forEach(cb => {
+            cb.checked = sched.days.includes(parseInt(cb.value));
+        });
+
+        // Status badge
+        if (badge) {
+            if (!sched.enabled) {
+                badge.textContent  = 'Off';
+                badge.className    = 'badge';
+            } else if (sched.in_window) {
+                badge.textContent  = 'Active';
+                badge.className    = 'badge badge-active';
+            } else {
+                badge.textContent  = 'Waiting';
+                badge.className    = 'badge badge-waiting';
+            }
+        }
+
+        // Next window info
+        if (nextWin) {
+            if (sched.enabled && !sched.in_window) {
+                const h = Math.floor(sched.minutes_until_window / 60);
+                const m = sched.minutes_until_window % 60;
+                const timeStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
+                nextWin.textContent  = `Next window starts at ${sched.start} (in ${timeStr})`;
+                nextWin.style.display = 'block';
+            } else {
+                nextWin.style.display = 'none';
+            }
+        }
+    }
+
+    // Load scheduler config on page load
+    fetch('/api/scheduler')
+        .then(r => r.json())
+        .then(updateSchedulerUI)
+        .catch(() => {});
+
+    // Also update from status polling (already in the poll response)
+    const _origUpdateStatus = window._updateStatusCallback;
+
+    // Save scheduler
+    const schedulerSaveBtn = document.getElementById('scheduler-save-btn');
+    if (schedulerSaveBtn) {
+        schedulerSaveBtn.addEventListener('click', async () => {
+            const enabled = document.getElementById('scheduler-enabled').checked;
+            const start   = document.getElementById('scheduler-start').value;
+            const end     = document.getElementById('scheduler-end').value;
+            const days    = Array.from(
+                document.querySelectorAll('.day-pill input[type="checkbox"]:checked')
+            ).map(cb => parseInt(cb.value));
+
+            try {
+                const response = await fetch('/api/scheduler', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ enabled, start, end, days }),
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                updateSchedulerUI({ ...result, in_window: result.in_window, minutes_until_window: result.minutes_until_window });
+                showToast('success', 'Scheduler saved', enabled
+                    ? `Active ${start}–${end}`
+                    : 'Scheduler disabled.');
+            } catch (err) {
+                showToast('error', 'Save failed', err.message || 'Could not save scheduler.');
+            }
+        });
+    }
 
     // ============================================================
     // INITIAL LOAD

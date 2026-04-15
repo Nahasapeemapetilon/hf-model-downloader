@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response
 import threading
 import requests
@@ -129,12 +130,74 @@ def _safe_repo_path(repo_id: str) -> str | None:
         return None
     return target
 
+# --- Scheduler ---
+class SchedulerConfig:
+    def __init__(self):
+        self.enabled = False
+        self.start   = "23:00"       # HH:MM — window start
+        self.end     = "07:00"       # HH:MM — window end (may cross midnight)
+        self.days    = list(range(7)) # 0=Mon … 6=Sun
+
+    def is_in_window(self) -> bool:
+        """Returns True if downloads should run right now."""
+        if not self.enabled:
+            return True  # scheduler off → no restriction
+        now = datetime.now()
+        if now.weekday() not in self.days:
+            return False
+        start_h, start_m = map(int, self.start.split(':'))
+        end_h,   end_m   = map(int, self.end.split(':'))
+        start_min = start_h * 60 + start_m
+        end_min   = end_h   * 60 + end_m
+        now_min   = now.hour * 60 + now.minute
+        if start_min <= end_min:          # same-day window  e.g. 09:00–17:00
+            return start_min <= now_min < end_min
+        else:                              # midnight-crossing e.g. 23:00–07:00
+            return now_min >= start_min or now_min < end_min
+
+    def minutes_until_window(self) -> int:
+        """Minutes until the next window opens (0 if already in window)."""
+        if self.is_in_window():
+            return 0
+        now = datetime.now()
+        start_h, start_m = map(int, self.start.split(':'))
+        start_min = start_h * 60 + start_m
+        now_min   = now.hour * 60 + now.minute
+        diff = (start_min - now_min) % (24 * 60)
+        return diff if diff > 0 else 24 * 60
+
+    def to_dict(self) -> dict:
+        return {"enabled": self.enabled, "start": self.start,
+                "end": self.end, "days": self.days}
+
+    def update(self, d: dict):
+        self.enabled = bool(d.get("enabled", False))
+        self.start   = d.get("start", "23:00")
+        self.end     = d.get("end",   "07:00")
+        self.days    = [int(x) for x in d.get("days", list(range(7)))]
+
+    def save(self, path: str):
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2)
+        os.replace(tmp, path)
+
+    def load(self, path: str):
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    self.update(json.load(f))
+            except Exception as exc:
+                logger.warning(f"[SCHEDULER] Config konnte nicht geladen werden: {exc}")
+
+
 # --- Download Management ---
 class DownloadJob:
-    def __init__(self, repo_id, files):
+    def __init__(self, repo_id, files, scheduled=False):
         self.repo_id = repo_id
         self.files_to_download = files
-        self.status = 'queued'  # queued, downloading, paused, completed, error
+        self.scheduled = scheduled   # True = only run inside scheduler window
+        self.status = 'queued'       # queued, downloading, paused, completed, error
         self.error_message = None
         self.total_files = len(files)
         self.current_file_index = 0
@@ -150,6 +213,9 @@ class DownloadManager:
         self._cancel_requested = False
         self._download_thread = None
         self._lock = threading.Lock()
+        self.scheduler = SchedulerConfig()
+        self.scheduler.load(os.path.join(DATA_DIR, "scheduler.json"))
+        self._wakeup_event = threading.Event()
         self._load_queue()
 
     # ------------------------------------------------------------------
@@ -163,10 +229,13 @@ class DownloadManager:
         state = []
         # If a job was running when we crash/restart, put it back at the front
         if self.current_job and self.current_job.status in ("downloading", "paused"):
-            state.append({"repo_id": self.current_job.repo_id,
-                          "files":   self.current_job.files_to_download})
+            state.append({"repo_id":   self.current_job.repo_id,
+                          "files":     self.current_job.files_to_download,
+                          "scheduled": self.current_job.scheduled})
         for job in self.queue:
-            state.append({"repo_id": job.repo_id, "files": job.files_to_download})
+            state.append({"repo_id":   job.repo_id,
+                          "files":     job.files_to_download,
+                          "scheduled": job.scheduled})
 
         path = self._queue_state_path()
         tmp  = path + ".tmp"
@@ -187,10 +256,11 @@ class DownloadManager:
                 state = json.load(f)
             restored = 0
             for entry in state:
-                repo_id = entry.get("repo_id", "").strip()
-                files   = entry.get("files", [])
+                repo_id   = entry.get("repo_id", "").strip()
+                files     = entry.get("files", [])
+                scheduled = bool(entry.get("scheduled", False))
                 if repo_id and isinstance(files, list) and files:
-                    self.queue.append(DownloadJob(repo_id, files))
+                    self.queue.append(DownloadJob(repo_id, files, scheduled))
                     restored += 1
             if restored:
                 logger.info(f"[QUEUE] {restored} Job(s) aus gespeichertem Queue-State wiederhergestellt")
@@ -199,7 +269,7 @@ class DownloadManager:
         except Exception as exc:
             logger.warning(f"[QUEUE] Queue-State konnte nicht geladen werden: {exc}")
 
-    def add_to_queue(self, repo_id, files):
+    def add_to_queue(self, repo_id, files, scheduled=False):
         with self._lock:
             # Prevent adding the exact same repo+files combination if already queued or running
             requested = set(files)
@@ -211,14 +281,18 @@ class DownloadManager:
                 logger.warning(f"[QUEUE] '{repo_id}' mit identischen Dateien läuft bereits – übersprungen")
                 return False, "This exact download is already running."
 
-            job = DownloadJob(repo_id, files)
+            job = DownloadJob(repo_id, files, scheduled)
             self.queue.append(job)
-            logger.info(f"[QUEUE] '{repo_id}' hinzugefügt ({len(files)} Datei(en)) | Warteschlange: {len(self.queue)} Job(s)")
+            mode = "geplant" if scheduled else "sofort"
+            logger.info(f"[QUEUE] '{repo_id}' hinzugefügt ({len(files)} Datei(en), {mode}) | Warteschlange: {len(self.queue)} Job(s)")
             self._save_queue()
             # If the download thread is not running, start it
             if self._download_thread is None or not self._download_thread.is_alive():
                 self._download_thread = threading.Thread(target=self._download_worker, daemon=True)
                 self._download_thread.start()
+            elif not scheduled:
+                # Wake up worker immediately if it's waiting for the scheduler window
+                self._wakeup_event.set()
         return True, "Added to download queue."
 
     def pause(self):
@@ -261,9 +335,20 @@ class DownloadManager:
     
     def get_status(self):
         with self._lock:
-            queue_status = [{'repo_id': j.repo_id, 'status': j.status, 'total_files': j.total_files} for j in self.queue]
-            
-            base_status = {'queue': queue_status}
+            queue_status = [
+                {'repo_id': j.repo_id, 'status': j.status,
+                 'total_files': j.total_files, 'scheduled': j.scheduled}
+                for j in self.queue
+            ]
+            sched = self.scheduler
+            base_status = {
+                'queue': queue_status,
+                'scheduler': {
+                    **sched.to_dict(),
+                    'in_window':            sched.is_in_window(),
+                    'minutes_until_window': sched.minutes_until_window(),
+                },
+            }
 
             if self.current_job:
                 base_status.update({
@@ -285,17 +370,43 @@ class DownloadManager:
 
     def _download_worker(self):
         while True:
+            job = None
             with self._lock:
-                if not self.queue:
-                    self.current_job = None
-                    logger.info("[WORKER] Warteschlange leer – Worker beendet")
+                in_window = self.scheduler.is_in_window()
+                # Priority 1: immediate (non-scheduled) jobs
+                for i, j in enumerate(self.queue):
+                    if not j.scheduled:
+                        job = self.queue.pop(i)
+                        break
+                # Priority 2: scheduled jobs — only if window is open
+                if job is None and in_window:
+                    for i, j in enumerate(self.queue):
+                        if j.scheduled:
+                            job = self.queue.pop(i)
+                            break
+
+                if job is None:
+                    if not self.queue:
+                        self.current_job = None
+                        logger.info("[WORKER] Warteschlange leer – Worker beendet")
+                        self._save_queue()
+                        return
+                    # Only scheduled jobs remain, window not open yet — wait
+                else:
+                    self.current_job = job
+                    job.status = 'downloading'
+                    self._cancel_requested = False
+                    self._pause_event.set()
                     self._save_queue()
-                    return
-                self.current_job = self.queue.pop(0)
-                self.current_job.status = 'downloading'
-                self._cancel_requested = False
-                self._pause_event.set()
-                self._save_queue()  # record that this job is now active
+
+            if job is None:
+                mins = self.scheduler.minutes_until_window()
+                logger.info(f"[SCHEDULER] Nur geplante Jobs – warte auf Zeitfenster "
+                            f"({self.scheduler.start}–{self.scheduler.end}, in {mins} min)")
+                # Wait up to 60s, but wake up immediately if a non-scheduled job arrives
+                self._wakeup_event.wait(timeout=60)
+                self._wakeup_event.clear()
+                continue
 
             job = self.current_job
             logger.info(f"[START] Starte Job: '{job.repo_id}' | {job.total_files} Datei(en)")
@@ -577,12 +688,47 @@ def repository_status():
         return jsonify({"error": f"Could not get repository status for '{repo_id}': {e}"}), 500
 
 
+@app.route("/api/scheduler", methods=["GET"])
+def get_scheduler():
+    """Returns current scheduler configuration and window status."""
+    sched = download_manager.scheduler
+    return jsonify({
+        **sched.to_dict(),
+        "in_window":            sched.is_in_window(),
+        "minutes_until_window": sched.minutes_until_window(),
+    })
+
+@app.route("/api/scheduler", methods=["POST"])
+def set_scheduler():
+    """Updates scheduler configuration."""
+    data = request.get_json(silent=True) or {}
+    download_manager.scheduler.update(data)
+    path = os.path.join(DATA_DIR, "scheduler.json")
+    try:
+        download_manager.scheduler.save(path)
+        logger.info(f"[SCHEDULER] Config gespeichert: {download_manager.scheduler.to_dict()}")
+        dm = download_manager
+        with dm._lock:
+            has_waiting = any(j.scheduled for j in dm.queue)
+        if has_waiting:
+            if not dm._download_thread or not dm._download_thread.is_alive():
+                # Worker not running — start it
+                dm._download_thread = threading.Thread(target=dm._download_worker, daemon=True)
+                dm._download_thread.start()
+            else:
+                # Worker is sleeping — wake it up immediately so it re-evaluates the window
+                dm._wakeup_event.set()
+        return jsonify({"message": "Scheduler updated.", **download_manager.scheduler.to_dict()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/download", methods=["POST"])
 def download():
     """Initiates a download."""
     data = request.get_json(silent=True) or {}
-    repo_id = data.get("repo_id", "").strip()
-    files   = data.get("files")
+    repo_id   = data.get("repo_id", "").strip()
+    files     = data.get("files")
+    scheduled = bool(data.get("scheduled", False))
     if not repo_id:
         return jsonify({"error": "No repository ID provided"}), 400
     if not files or not isinstance(files, list):
@@ -590,12 +736,13 @@ def download():
     if _safe_repo_path(repo_id) is None:
         return jsonify({"error": "Invalid repository ID."}), 400
 
-    logger.info(f"[REQUEST] Download angefordert: '{repo_id}' | {len(files)} Datei(en): {', '.join(files)}")
-    success, message = download_manager.add_to_queue(repo_id, files)
+    mode = "geplant" if scheduled else "sofort"
+    logger.info(f"[REQUEST] Download angefordert ({mode}): '{repo_id}' | {len(files)} Datei(en): {', '.join(files)}")
+    success, message = download_manager.add_to_queue(repo_id, files, scheduled)
     if success:
         return jsonify({"message": message})
     else:
-        return jsonify({"error": message}), 409 # 409 Conflict - resource busy
+        return jsonify({"error": message}), 409
 
 @app.route("/download-status")
 def download_status():
