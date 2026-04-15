@@ -435,6 +435,7 @@ class DownloadManager:
                         self.current_job = job
                         job.status = 'downloading'
                         self._cancel_requested = False
+                        self._reschedule_current = False
                         self._pause_event.set()
                         self._save_queue()
 
