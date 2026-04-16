@@ -16,9 +16,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const completedListUl        = document.getElementById("completed-list");
     const themeToggle            = document.getElementById("theme-toggle");
 
-    let progressTimeout   = null;
-    let currentRepoId     = '';
-    let trendingLoaded    = false;
+    let progressTimeout      = null;
+    let currentRepoId        = '';
+    let trendingLoaded       = false;
+    let filterOrgRepoOnly    = localStorage.getItem('filterOrgRepoOnly') === 'true';
 
     // ============================================================
     // THEME TOGGLE
@@ -463,20 +464,24 @@ document.addEventListener("DOMContentLoaded", function () {
             const response  = await fetch("/completed");
             const completed = await response.json();
 
+            const visible = filterOrgRepoOnly
+                ? completed.filter(r => r.includes('/'))
+                : completed;
+
             completedListUl.innerHTML = '';
 
             const countBadge = document.getElementById('completed-count-badge');
             const emptyState = completedListUl.parentElement.querySelector('.empty-state');
 
-            if (countBadge) countBadge.textContent = completed.length;
+            if (countBadge) countBadge.textContent = visible.length;
 
-            if (completed.length === 0) {
+            if (visible.length === 0) {
                 if (emptyState) emptyState.style.display = 'flex';
                 return;
             }
             if (emptyState) emptyState.style.display = 'none';
 
-            completed.forEach(repo => {
+            visible.forEach(repo => {
                 completedListUl.appendChild(createRepoCard(repo));
             });
         } catch (error) {
@@ -1085,6 +1090,19 @@ document.addEventListener("DOMContentLoaded", function () {
             } catch (err) {
                 showToast('error', 'Save failed', err.message || 'Could not save scheduler.');
             }
+        });
+    }
+
+    // ============================================================
+    // FILTER TOGGLE — HF only (org/repo)
+    // ============================================================
+    const filterOrgRepoCheckbox = document.getElementById('filter-org-repo');
+    if (filterOrgRepoCheckbox) {
+        filterOrgRepoCheckbox.checked = filterOrgRepoOnly;
+        filterOrgRepoCheckbox.addEventListener('change', () => {
+            filterOrgRepoOnly = filterOrgRepoCheckbox.checked;
+            localStorage.setItem('filterOrgRepoOnly', filterOrgRepoOnly);
+            updateCompletedList();
         });
     }
 
