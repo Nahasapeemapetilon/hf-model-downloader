@@ -446,7 +446,8 @@ document.addEventListener("DOMContentLoaded", function () {
             let hasDownloadable = false;
 
             statusList.forEach(file => {
-                const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
+                const canDownload  = file.status === 'not_downloaded' || file.status === 'outdated';
+                const canDelete    = file.status === 'synced';
                 if (canDownload) hasDownloadable = true;
 
                 const checkboxId = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -457,6 +458,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
                     <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
                     <span class="file-size">${formatBytes(file.size)}</span>
+                    ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="Delete file" aria-label="Delete ${escapeHtml(file.name)}">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                    </button>` : ''}
                 `;
                 fileList.appendChild(li);
             });
@@ -1038,6 +1047,41 @@ document.addEventListener("DOMContentLoaded", function () {
                 showToast('success', 'Repo deleted', `"${repoId}" removed from disk.`);
             } catch (err) {
                 showToast('error', 'Delete failed', err.message || 'Could not delete repo.');
+            }
+            return;
+        }
+
+        // Delete single file
+        if (target.closest('.file-delete-btn')) {
+            const btn      = target.closest('.file-delete-btn');
+            const filename = btn.dataset.file;
+            if (!confirm(`Delete "${filename}"?\nIt will need to be re-downloaded from HuggingFace.`)) return;
+            try {
+                const response = await fetch('/api/file', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId, filename })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+
+                if (result.repo_deleted) {
+                    // Whole repo is gone — remove card and update counter
+                    card.remove();
+                    localOnlyRepos.delete(repoId);
+                    confirmedHFRepos.delete(repoId);
+                    saveLocalOnlyCache();
+                    const countBadge = document.getElementById('completed-count-badge');
+                    if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                    showToast('success', 'File deleted', `Last file removed — repo "${repoId}" cleaned up.`);
+                } else {
+                    // Remove just this file row and refresh stats
+                    btn.closest('li').remove();
+                    await refreshRepoStatus(card);
+                    showToast('success', 'File deleted', `"${filename}" removed.`);
+                }
+            } catch (err) {
+                showToast('error', 'Delete failed', err.message || 'Could not delete file.');
             }
             return;
         }

@@ -914,6 +914,65 @@ def check_repos_hf():
     return jsonify(result)
 
 
+@app.route("/api/file", methods=["DELETE"])
+def delete_file():
+    """Deletes a single file from a downloaded repo."""
+    data     = request.get_json(silent=True) or {}
+    repo_id  = data.get("repo_id",  "").strip()
+    filename = data.get("filename", "").strip()
+    if not repo_id or not filename:
+        return jsonify({"error": "repo_id and filename required"}), 400
+
+    # Block if repo is currently downloading or queued
+    status = download_manager.get_status()
+    if status.get("current_job") and status["current_job"].get("repo_id") == repo_id:
+        return jsonify({"error": "Repo is currently downloading"}), 409
+    if any(q.get("repo_id") == repo_id for q in status.get("queue", [])):
+        return jsonify({"error": "Repo is in the download queue"}), 409
+
+    repo_path = _safe_repo_path(repo_id)
+    if not repo_path:
+        return jsonify({"error": "Invalid repo_id"}), 400
+
+    # Resolve and validate file path stays within repo dir
+    file_path = os.path.realpath(os.path.join(repo_path, filename))
+    if not file_path.startswith(os.path.realpath(repo_path) + os.sep):
+        logger.warning(f"[SECURITY] Path-Traversal-Versuch bei Datei: '{filename}'")
+        return jsonify({"error": "Invalid filename"}), 400
+
+    if not os.path.isfile(file_path):
+        return jsonify({"error": "File not found"}), 404
+
+    try:
+        os.remove(file_path)
+        logger.info(f"[DELETE] File '{filename}' from '{repo_id}'")
+
+        # Remove empty parent directories up to (but not including) repo_path
+        parent = os.path.dirname(file_path)
+        while os.path.realpath(parent) != os.path.realpath(repo_path):
+            if not os.listdir(parent):
+                os.rmdir(parent)
+                parent = os.path.dirname(parent)
+            else:
+                break
+
+        # If repo folder has no files left, remove it too
+        repo_empty = not _has_any_file(repo_path)
+        if repo_empty:
+            shutil.rmtree(repo_path)
+            logger.info(f"[DELETE] Empty repo '{repo_id}' removed")
+            # Remove empty parent org-dir
+            org_dir = os.path.dirname(repo_path)
+            if org_dir != os.path.realpath(DOWNLOAD_DIR) and os.path.isdir(org_dir):
+                if not os.listdir(org_dir):
+                    os.rmdir(org_dir)
+
+        return jsonify({"success": True, "repo_deleted": repo_empty})
+    except Exception as e:
+        logger.error(f"[DELETE] Failed to remove file '{filename}' from '{repo_id}': {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/repo", methods=["DELETE"])
 def delete_repo():
     """Deletes a downloaded repo folder and all its contents."""

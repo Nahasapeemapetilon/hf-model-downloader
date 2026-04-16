@@ -1942,3 +1942,31 @@ a { color: inherit; text-decoration: none; }
     color: var(--color-error) !important;
     background: var(--color-error-bg) !important;
 }
+
+/* File delete button */
+.file-delete-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.status-file-item:hover .file-delete-btn {
+    opacity: 1;
+}
+
+.file-delete-btn:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    opacity: 1;
+}
