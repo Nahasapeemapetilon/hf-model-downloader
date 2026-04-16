@@ -55,6 +55,15 @@ logger.info("=" * 60)
 logger.info("HuggingFace Downloader gestartet")
 logger.info("=" * 60)
 
+# --- Version ---
+_version_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
+try:
+    with open(_version_file, "r", encoding="utf-8") as _vf:
+        APP_VERSION = _vf.read().strip()
+except Exception:
+    APP_VERSION = "unknown"
+logger.info(f"Version: {APP_VERSION}")
+
 # --- Configuration ---
 _default_dl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
 DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", _default_dl_dir)
@@ -695,7 +704,7 @@ def get_completed_downloads():
 @app.route("/")
 def index():
     """Renders the main page."""
-    return render_template("index.html", completed_downloads=get_completed_downloads())
+    return render_template("index.html", completed_downloads=get_completed_downloads(), app_version=APP_VERSION)
 
 @app.route("/api/list-files", methods=["POST"])
 def list_files_route():

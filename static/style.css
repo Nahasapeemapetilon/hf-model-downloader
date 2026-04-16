@@ -1958,6 +1958,29 @@ a { color: inherit; text-decoration: none; }
     background: var(--color-success-bg) !important;
 }
 
+/* ------------------------------------------------------------
+   App Footer
+   ------------------------------------------------------------ */
+.app-footer {
+    text-align: center;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.app-footer-sep {
+    opacity: 0.4;
+}
+
+.app-footer-version {
+    font-family: var(--font-mono, monospace);
+    opacity: 0.7;
+}
+
 /* Repo delete button — red hover */
 .repo-delete-btn:hover {
     color: var(--color-error) !important;
