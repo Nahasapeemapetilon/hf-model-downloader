@@ -1937,6 +1937,27 @@ a { color: inherit; text-decoration: none; }
     box-shadow: var(--shadow-sm);
 }
 
+/* Show-hidden button active state */
+#show-hidden-btn.is-active {
+    color: var(--accent-500);
+}
+
+/* Hidden repo cards — grayed out */
+.repo-card.is-hidden-repo {
+    opacity: 0.45;
+    border-style: dashed;
+}
+
+.repo-card.is-hidden-repo:hover {
+    opacity: 0.75;
+}
+
+/* Unhide button — green hover */
+.repo-unhide-btn:hover {
+    color: var(--color-success) !important;
+    background: var(--color-success-bg) !important;
+}
+
 /* Repo delete button — red hover */
 .repo-delete-btn:hover {
     color: var(--color-error) !important;

@@ -317,6 +317,17 @@ document.addEventListener("DOMContentLoaded", function () {
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                         </svg>
                     </button>
+                    <button class="btn btn-ghost btn-icon btn-sm repo-hide-btn"
+                            data-repo="${escapeHtml(repo)}" title="Hide repo from list"
+                            aria-label="Hide repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                    </button>
                     <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
                             data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
                             aria-label="Delete repo">
@@ -1026,6 +1037,44 @@ document.addEventListener("DOMContentLoaded", function () {
         const fileList    = card.querySelector('.local-file-list');
         const downloadBtn = card.querySelector('.download-updates-btn');
 
+        // Hide repo
+        if (target.closest('.repo-hide-btn')) {
+            try {
+                const response = await fetch('/api/repo/hide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                if (!response.ok) throw new Error((await response.json()).error);
+                card.remove();
+                const countBadge = document.getElementById('completed-count-badge');
+                if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                if (showHidden) await loadHiddenRepos();
+                showToast('info', 'Repo hidden', `"${repoId}" is hidden. Use the eye button to show hidden repos.`);
+            } catch (err) {
+                showToast('error', 'Hide failed', err.message || 'Could not hide repo.');
+            }
+            return;
+        }
+
+        // Unhide repo
+        if (target.closest('.repo-unhide-btn')) {
+            try {
+                const response = await fetch('/api/repo/unhide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                if (!response.ok) throw new Error((await response.json()).error);
+                card.remove();
+                await updateCompletedList();
+                showToast('success', 'Repo restored', `"${repoId}" is visible again.`);
+            } catch (err) {
+                showToast('error', 'Unhide failed', err.message || 'Could not unhide repo.');
+            }
+            return;
+        }
+
         // Delete repo button
         if (target.closest('.repo-delete-btn')) {
             if (!confirm(`Delete "${repoId}" and all its files from disk?\nThis cannot be undone.`)) return;
@@ -1042,8 +1091,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 localOnlyRepos.delete(repoId);
                 confirmedHFRepos.delete(repoId);
                 saveLocalOnlyCache();
-                const countBadge = document.getElementById('completed-count-badge');
-                if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                // Also remove from hidden list if it was hidden
+                await fetch('/api/repo/unhide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                }).catch(() => {});
+                if (!card.classList.contains('is-hidden-repo')) {
+                    const countBadge = document.getElementById('completed-count-badge');
+                    if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                }
                 showToast('success', 'Repo deleted', `"${repoId}" removed from disk.`);
             } catch (err) {
                 showToast('error', 'Delete failed', err.message || 'Could not delete repo.');
@@ -1255,6 +1312,83 @@ document.addEventListener("DOMContentLoaded", function () {
             updateCompletedList();
         });
     });
+
+    // ============================================================
+    // SHOW HIDDEN TOGGLE
+    // ============================================================
+    let showHidden = false;
+    const showHiddenBtn = document.getElementById('show-hidden-btn');
+
+    async function loadHiddenRepos() {
+        try {
+            const resp = await fetch('/api/repo/hidden');
+            const hidden = await resp.json();
+            const existingHidden = completedListUl.querySelectorAll('.repo-card.is-hidden-repo');
+            existingHidden.forEach(el => el.remove());
+
+            hidden.forEach(repo => {
+                const card = createHiddenRepoCard(repo);
+                completedListUl.appendChild(card);
+            });
+        } catch (e) {
+            console.error('Error loading hidden repos:', e);
+        }
+    }
+
+    function createHiddenRepoCard(repo) {
+        const li = document.createElement('li');
+        li.className = 'repo-card completed-item is-hidden-repo';
+        li.dataset.repo = repo;
+        li.innerHTML = `
+            <div class="repo-card-header">
+                <div class="repo-card-title">
+                    <svg class="repo-type-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span class="repo-card-name truncate" title="${escapeHtml(repo)}">${escapeHtml(repo)}</span>
+                </div>
+                <div class="repo-card-actions">
+                    <button class="btn btn-ghost btn-icon btn-sm repo-unhide-btn"
+                            data-repo="${escapeHtml(repo)}" title="Unhide repo" aria-label="Unhide repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                    <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
+                            data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
+                            aria-label="Delete repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+        return li;
+    }
+
+    if (showHiddenBtn) {
+        showHiddenBtn.addEventListener('click', async () => {
+            showHidden = !showHidden;
+            showHiddenBtn.classList.toggle('is-active', showHidden);
+            showHiddenBtn.setAttribute('aria-pressed', showHidden);
+            if (showHidden) {
+                await loadHiddenRepos();
+            } else {
+                completedListUl.querySelectorAll('.is-hidden-repo').forEach(el => el.remove());
+            }
+        });
+    }
 
     // ============================================================
     // INITIAL LOAD

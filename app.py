@@ -70,6 +70,21 @@ if not os.path.exists(DATA_DIR):
     logger.info(f"Data-Verzeichnis erstellt: {DATA_DIR}")
 logger.info(f"Data-Verzeichnis: {DATA_DIR}")
 
+_HIDDEN_PATH = os.path.join(DATA_DIR, 'hidden_repos.json')
+
+def _load_hidden() -> set:
+    try:
+        with open(_HIDDEN_PATH, 'r', encoding='utf-8') as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def _save_hidden(hidden: set):
+    tmp = _HIDDEN_PATH + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(sorted(hidden), f)
+    os.replace(tmp, _HIDDEN_PATH)
+
 _hf_token = os.environ.get("HF_TOKEN", "").strip()
 HF_TOKEN = _hf_token if _hf_token else None
 if HF_TOKEN:
@@ -886,8 +901,36 @@ def queue_start_now(index):
 
 @app.route("/completed")
 def completed():
-    """Returns the list of completed downloads."""
-    return jsonify(get_completed_downloads())
+    """Returns the list of completed downloads, excluding hidden repos."""
+    hidden = _load_hidden()
+    return jsonify([r for r in get_completed_downloads() if r not in hidden])
+
+@app.route("/api/repo/hidden", methods=["GET"])
+def get_hidden_repos():
+    """Returns the list of hidden repo IDs."""
+    return jsonify(sorted(_load_hidden()))
+
+@app.route("/api/repo/hide", methods=["POST"])
+def hide_repo():
+    data    = request.get_json(silent=True) or {}
+    repo_id = data.get("repo_id", "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id required"}), 400
+    hidden = _load_hidden()
+    hidden.add(repo_id)
+    _save_hidden(hidden)
+    return jsonify({"success": True})
+
+@app.route("/api/repo/unhide", methods=["POST"])
+def unhide_repo():
+    data    = request.get_json(silent=True) or {}
+    repo_id = data.get("repo_id", "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id required"}), 400
+    hidden = _load_hidden()
+    hidden.discard(repo_id)
+    _save_hidden(hidden)
+    return jsonify({"success": True})
 
 @app.route("/api/repos/check-hf", methods=["POST"])
 def check_repos_hf():
