@@ -363,6 +363,7 @@
                         </div>
                         <div class="progress-info">
                             <span id="progress-pct-text" class="progress-pct">0%</span>
+                            <span id="download-speed-eta" class="download-speed-eta"></span>
                             <span id="file-counter" class="progress-counter">File 0 of 0</span>
                         </div>
                     </div>
@@ -606,6 +607,19 @@
                 </div>
                 <span class="settings-toggle-wrap">
                     <input type="checkbox" class="settings-toggle-input" id="setting-non-hf-delete">
+                    <span class="settings-toggle-slider"></span>
+                </span>
+            </label>
+
+            <p class="settings-group-title" style="margin-top: var(--space-4);">Download</p>
+
+            <label class="settings-row">
+                <div class="settings-row-info">
+                    <span class="settings-row-label">Show speed &amp; ETA</span>
+                    <span class="settings-row-desc">Display download speed (MB/s) and estimated time remaining</span>
+                </div>
+                <span class="settings-toggle-wrap">
+                    <input type="checkbox" class="settings-toggle-input" id="setting-show-speed" checked>
                     <span class="settings-toggle-slider"></span>
                 </span>
             </label>

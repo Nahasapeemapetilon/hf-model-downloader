@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", function () {
         allowFileDelete:   localStorage.getItem('setting-file-delete')   === 'true',
         allowRepoDelete:   localStorage.getItem('setting-repo-delete')   === 'true',
         allowNonHFDelete:  localStorage.getItem('setting-non-hf-delete') === 'true',
+        showSpeedEta:      localStorage.getItem('setting-show-speed') !== 'false',
     };
 
     function applySettings() {
@@ -653,6 +654,27 @@ document.addEventListener("DOMContentLoaded", function () {
                 const pct = Math.min(100, Math.max(0, Math.round(status.total_progress || 0)));
                 document.getElementById('progress-bar-fill').style.width = `${pct}%`;
                 document.getElementById('progress-pct-text').textContent  = `${pct}%`;
+
+                // Speed + ETA
+                const speedEtaEl = document.getElementById('download-speed-eta');
+                if (speedEtaEl) {
+                    if (settings.showSpeedEta && status.download_speed > 0) {
+                        const speedMB = (status.download_speed / 1048576).toFixed(1);
+                        let etaStr = '';
+                        if (status.eta_seconds != null && status.eta_seconds > 0) {
+                            const m = Math.floor(status.eta_seconds / 60);
+                            const s = status.eta_seconds % 60;
+                            etaStr = m > 0
+                                ? ` · ${m}m ${s}s`
+                                : ` · ${s}s`;
+                        }
+                        speedEtaEl.textContent = `${speedMB} MB/s${etaStr}`;
+                        speedEtaEl.style.display = '';
+                    } else {
+                        speedEtaEl.textContent = '';
+                        speedEtaEl.style.display = 'none';
+                    }
+                }
 
                 // Legacy progress element
                 const legacyProgress = document.getElementById('total-progress');
@@ -1359,9 +1381,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Init toggles from saved state
     [
-        { id: 'setting-file-delete',  key: 'allowFileDelete'  },
-        { id: 'setting-repo-delete',  key: 'allowRepoDelete'  },
+        { id: 'setting-file-delete',   key: 'allowFileDelete'  },
+        { id: 'setting-repo-delete',   key: 'allowRepoDelete'  },
         { id: 'setting-non-hf-delete', key: 'allowNonHFDelete' },
+        { id: 'setting-show-speed',    key: 'showSpeedEta'     },
     ].forEach(({ id, key }) => {
         const el = document.getElementById(id);
         if (!el) return;

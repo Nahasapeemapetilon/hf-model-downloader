@@ -244,6 +244,8 @@ class DownloadJob:
         self.current_file = ""
         self.current_file_progress = 0
         self.total_progress = 0
+        self.download_speed = 0.0   # bytes/sec
+        self.eta_seconds    = None  # remaining seconds, None if unknown
 
 class DownloadManager:
     def __init__(self):
@@ -436,8 +438,10 @@ class DownloadManager:
                     'total_files': self.current_job.total_files,
                     'file_index': self.current_job.current_file_index + 1,
                     'current_file': self.current_job.current_file,
-                    'total_progress': self.current_job.total_progress,
-                    'error': self.current_job.error_message
+                    'total_progress':  self.current_job.total_progress,
+                    'download_speed':  self.current_job.download_speed,
+                    'eta_seconds':     self.current_job.eta_seconds,
+                    'error':           self.current_job.error_message
                 })
             elif self.queue:
                  base_status['status'] = 'pending' # There are items in the queue, but none are active
@@ -499,6 +503,8 @@ class DownloadManager:
                     job.current_file_index = i
                     job.current_file = filename
                     job.current_file_progress = 0
+                    job.download_speed = 0.0
+                    job.eta_seconds    = None
 
                     local_dir = os.path.join(DOWNLOAD_DIR, job.repo_id)
                     local_path = os.path.realpath(os.path.join(local_dir, filename.replace("/", os.sep)))
@@ -560,6 +566,8 @@ class DownloadManager:
                                         logger.info(f"[FILE] ({i + 1}/{job.total_files}) '{filename}' | {size_str}")
 
                                 last_logged_pct = int((downloaded / total_size * 100) // 25) * 25 if total_size > 0 else -1
+                                _speed_window_bytes = 0
+                                _speed_window_start = time.monotonic()
                                 with open(local_path, file_mode) as f:
                                     for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
                                         if self._cancel_requested: break
@@ -567,7 +575,23 @@ class DownloadManager:
                                         if self._cancel_requested: break
                                         if chunk:
                                             f.write(chunk)
-                                            downloaded += len(chunk)
+                                            chunk_len = len(chunk)
+                                            downloaded += chunk_len
+                                            _speed_window_bytes += chunk_len
+
+                                            # Update speed every second
+                                            _now = time.monotonic()
+                                            _elapsed = _now - _speed_window_start
+                                            if _elapsed >= 1.0:
+                                                job.download_speed = _speed_window_bytes / _elapsed
+                                                _speed_window_bytes = 0
+                                                _speed_window_start = _now
+
+                                                # ETA based on total remaining bytes
+                                                if job.download_speed > 0 and total_size > 0:
+                                                    remaining = total_size - downloaded
+                                                    job.eta_seconds = int(remaining / job.download_speed)
+
                                             if total_size > 0:
                                                 job.current_file_progress = (downloaded / total_size) * 100
                                                 job.total_progress = ((i + (downloaded / total_size)) / job.total_files) * 100
