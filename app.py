@@ -2,8 +2,11 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response
 import threading
 import requests
@@ -52,6 +55,15 @@ logger.info("=" * 60)
 logger.info("HuggingFace Downloader gestartet")
 logger.info("=" * 60)
 
+# --- Version ---
+_version_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
+try:
+    with open(_version_file, "r", encoding="utf-8") as _vf:
+        APP_VERSION = _vf.read().strip()
+except Exception:
+    APP_VERSION = "unknown"
+logger.info(f"Version: {APP_VERSION}")
+
 # --- Configuration ---
 _default_dl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
 DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", _default_dl_dir)
@@ -66,6 +78,21 @@ if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
     logger.info(f"Data-Verzeichnis erstellt: {DATA_DIR}")
 logger.info(f"Data-Verzeichnis: {DATA_DIR}")
+
+_HIDDEN_PATH = os.path.join(DATA_DIR, 'hidden_repos.json')
+
+def _load_hidden() -> set:
+    try:
+        with open(_HIDDEN_PATH, 'r', encoding='utf-8') as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def _save_hidden(hidden: set):
+    tmp = _HIDDEN_PATH + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(sorted(hidden), f)
+    os.replace(tmp, _HIDDEN_PATH)
 
 _hf_token = os.environ.get("HF_TOKEN", "").strip()
 HF_TOKEN = _hf_token if _hf_token else None
@@ -129,12 +156,88 @@ def _safe_repo_path(repo_id: str) -> str | None:
         return None
     return target
 
+# --- Scheduler ---
+class SchedulerConfig:
+    def __init__(self):
+        self.enabled = False
+        self.start   = "23:00"       # HH:MM — window start
+        self.end     = "07:00"       # HH:MM — window end (may cross midnight)
+        self.days    = list(range(7)) # 0=Mon … 6=Sun
+
+    def is_in_window(self) -> bool:
+        """Returns True if downloads should run right now."""
+        if not self.enabled:
+            return True  # scheduler off → no restriction
+        now = datetime.now()
+        if now.weekday() not in self.days:
+            return False
+        start_h, start_m = map(int, self.start.split(':'))
+        end_h,   end_m   = map(int, self.end.split(':'))
+        start_min = start_h * 60 + start_m
+        end_min   = end_h   * 60 + end_m
+        now_min   = now.hour * 60 + now.minute
+        if start_min <= end_min:          # same-day window  e.g. 09:00–17:00
+            return start_min <= now_min < end_min
+        else:                              # midnight-crossing e.g. 23:00–07:00
+            return now_min >= start_min or now_min < end_min
+
+    def minutes_until_window(self) -> int:
+        """Minutes until the next window opens (0 if already in window)."""
+        if self.is_in_window():
+            return 0
+        now = datetime.now()
+        start_h, start_m = map(int, self.start.split(':'))
+        start_min = start_h * 60 + start_m
+        now_min   = now.hour * 60 + now.minute
+        diff = (start_min - now_min) % (24 * 60)
+        return diff if diff > 0 else 24 * 60
+
+    def to_dict(self) -> dict:
+        return {"enabled": self.enabled, "start": self.start,
+                "end": self.end, "days": self.days}
+
+    @staticmethod
+    def _parse_time(value: str, default: str) -> str:
+        """Validates HH:MM format and returns it, or falls back to default."""
+        try:
+            h, m = map(int, str(value).split(':'))
+            if 0 <= h <= 23 and 0 <= m <= 59:
+                return f"{h:02d}:{m:02d}"
+        except (ValueError, AttributeError):
+            pass
+        logger.warning(f"[SCHEDULER] Ungültiges Zeitformat '{value}' – verwende Standard '{default}'")
+        return default
+
+    def update(self, d: dict):
+        self.enabled = bool(d.get("enabled", False))
+        self.start   = self._parse_time(d.get("start", "23:00"), "23:00")
+        self.end     = self._parse_time(d.get("end",   "07:00"), "07:00")
+        self.days    = [x for x in (int(v) for v in d.get("days", list(range(7)))) if 0 <= x <= 6]
+        if not self.days:
+            self.days = list(range(7))
+
+    def save(self, path: str):
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2)
+        os.replace(tmp, path)
+
+    def load(self, path: str):
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    self.update(json.load(f))
+            except Exception as exc:
+                logger.warning(f"[SCHEDULER] Config konnte nicht geladen werden: {exc}")
+
+
 # --- Download Management ---
 class DownloadJob:
-    def __init__(self, repo_id, files):
+    def __init__(self, repo_id, files, scheduled=False):
         self.repo_id = repo_id
         self.files_to_download = files
-        self.status = 'queued'  # queued, downloading, paused, completed, error
+        self.scheduled = scheduled   # True = only run inside scheduler window
+        self.status = 'queued'       # queued, downloading, paused, completed, error
         self.error_message = None
         self.total_files = len(files)
         self.current_file_index = 0
@@ -149,8 +252,15 @@ class DownloadManager:
         self._pause_event = threading.Event()
         self._cancel_requested = False
         self._download_thread = None
+        self._worker_running = False
         self._lock = threading.Lock()
+        self.scheduler = SchedulerConfig()
+        self.scheduler.load(os.path.join(DATA_DIR, "scheduler.json"))
+        self._wakeup_event = threading.Event()
+        self._reschedule_current = False
         self._load_queue()
+        # Monitor thread: auto-pause/resume scheduled jobs when window opens/closes
+        threading.Thread(target=self._scheduler_monitor, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Queue persistence
@@ -163,10 +273,13 @@ class DownloadManager:
         state = []
         # If a job was running when we crash/restart, put it back at the front
         if self.current_job and self.current_job.status in ("downloading", "paused"):
-            state.append({"repo_id": self.current_job.repo_id,
-                          "files":   self.current_job.files_to_download})
+            state.append({"repo_id":   self.current_job.repo_id,
+                          "files":     self.current_job.files_to_download,
+                          "scheduled": self.current_job.scheduled})
         for job in self.queue:
-            state.append({"repo_id": job.repo_id, "files": job.files_to_download})
+            state.append({"repo_id":   job.repo_id,
+                          "files":     job.files_to_download,
+                          "scheduled": job.scheduled})
 
         path = self._queue_state_path()
         tmp  = path + ".tmp"
@@ -187,19 +300,51 @@ class DownloadManager:
                 state = json.load(f)
             restored = 0
             for entry in state:
-                repo_id = entry.get("repo_id", "").strip()
-                files   = entry.get("files", [])
+                repo_id   = entry.get("repo_id", "").strip()
+                files     = entry.get("files", [])
+                scheduled = bool(entry.get("scheduled", False))
                 if repo_id and isinstance(files, list) and files:
-                    self.queue.append(DownloadJob(repo_id, files))
+                    self.queue.append(DownloadJob(repo_id, files, scheduled))
                     restored += 1
             if restored:
                 logger.info(f"[QUEUE] {restored} Job(s) aus gespeichertem Queue-State wiederhergestellt")
+                self._worker_running = True
                 self._download_thread = threading.Thread(target=self._download_worker, daemon=True)
                 self._download_thread.start()
         except Exception as exc:
             logger.warning(f"[QUEUE] Queue-State konnte nicht geladen werden: {exc}")
 
-    def add_to_queue(self, repo_id, files):
+    def _scheduler_monitor(self):
+        """Background thread: auto-pause/resume the current job when the scheduler window opens or closes."""
+        prev_in_window = self.scheduler.is_in_window()
+        while True:
+            time.sleep(30)
+            in_window = self.scheduler.is_in_window()
+            with self._lock:
+                job = self.current_job
+            if job and job.scheduled:
+                if in_window and not prev_in_window and job.status == 'paused':
+                    logger.info(f"[SCHEDULER] Zeitfenster geöffnet – Resume: '{job.repo_id}'")
+                    self.resume()
+                elif not in_window and prev_in_window and job.status == 'downloading':
+                    logger.info(f"[SCHEDULER] Zeitfenster beendet – Pause: '{job.repo_id}'")
+                    self.pause()
+            prev_in_window = in_window
+
+    def move_current_to_scheduler(self):
+        """Cancels the active download and re-queues it as a scheduled job."""
+        with self._lock:
+            if not self.current_job:
+                return False, "No active download."
+            if not self.scheduler.enabled:
+                return False, "Scheduler is not enabled."
+            self.current_job.scheduled = True
+            self._reschedule_current = True
+            self._cancel_requested = True
+            self._pause_event.set()  # unpause so worker can process the cancel
+        return True, f"'{self.current_job.repo_id}' wird in Scheduler-Queue verschoben."
+
+    def add_to_queue(self, repo_id, files, scheduled=False):
         with self._lock:
             # Prevent adding the exact same repo+files combination if already queued or running
             requested = set(files)
@@ -211,28 +356,35 @@ class DownloadManager:
                 logger.warning(f"[QUEUE] '{repo_id}' mit identischen Dateien läuft bereits – übersprungen")
                 return False, "This exact download is already running."
 
-            job = DownloadJob(repo_id, files)
+            job = DownloadJob(repo_id, files, scheduled)
             self.queue.append(job)
-            logger.info(f"[QUEUE] '{repo_id}' hinzugefügt ({len(files)} Datei(en)) | Warteschlange: {len(self.queue)} Job(s)")
+            mode = "geplant" if scheduled else "sofort"
+            logger.info(f"[QUEUE] '{repo_id}' hinzugefügt ({len(files)} Datei(en), {mode}) | Warteschlange: {len(self.queue)} Job(s)")
             self._save_queue()
             # If the download thread is not running, start it
-            if self._download_thread is None or not self._download_thread.is_alive():
+            if not self._worker_running:
+                self._worker_running = True
                 self._download_thread = threading.Thread(target=self._download_worker, daemon=True)
                 self._download_thread.start()
+            elif not scheduled:
+                # Wake up worker immediately if it's waiting for the scheduler window
+                self._wakeup_event.set()
         return True, "Added to download queue."
 
     def pause(self):
-        if self.current_job and self.current_job.status == 'downloading':
-            self._pause_event.clear()
-            self.current_job.status = 'paused'
-            logger.info(f"[PAUSE] Download pausiert: '{self.current_job.repo_id}' "
-                        f"(Datei {self.current_job.current_file_index + 1}/{self.current_job.total_files})")
+        with self._lock:
+            if self.current_job and self.current_job.status == 'downloading':
+                self._pause_event.clear()
+                self.current_job.status = 'paused'
+                logger.info(f"[PAUSE] Download pausiert: '{self.current_job.repo_id}' "
+                            f"(Datei {self.current_job.current_file_index + 1}/{self.current_job.total_files})")
 
     def resume(self):
-        if self.current_job and self.current_job.status == 'paused':
-            self.current_job.status = 'downloading'
-            self._pause_event.set()
-            logger.info(f"[RESUME] Download fortgesetzt: '{self.current_job.repo_id}'")
+        with self._lock:
+            if self.current_job and self.current_job.status == 'paused':
+                self.current_job.status = 'downloading'
+                self._pause_event.set()
+                logger.info(f"[RESUME] Download fortgesetzt: '{self.current_job.repo_id}'")
 
     def cancel(self):
         with self._lock:
@@ -261,9 +413,20 @@ class DownloadManager:
     
     def get_status(self):
         with self._lock:
-            queue_status = [{'repo_id': j.repo_id, 'status': j.status, 'total_files': j.total_files} for j in self.queue]
-            
-            base_status = {'queue': queue_status}
+            queue_status = [
+                {'repo_id': j.repo_id, 'status': j.status,
+                 'total_files': j.total_files, 'scheduled': j.scheduled}
+                for j in self.queue
+            ]
+            sched = self.scheduler
+            base_status = {
+                'queue': queue_status,
+                'scheduler': {
+                    **sched.to_dict(),
+                    'in_window':            sched.is_in_window(),
+                    'minutes_until_window': sched.minutes_until_window(),
+                },
+            }
 
             if self.current_job:
                 base_status.update({
@@ -284,149 +447,196 @@ class DownloadManager:
             return base_status
 
     def _download_worker(self):
-        while True:
-            with self._lock:
-                if not self.queue:
-                    self.current_job = None
-                    logger.info("[WORKER] Warteschlange leer – Worker beendet")
-                    self._save_queue()
-                    return
-                self.current_job = self.queue.pop(0)
-                self.current_job.status = 'downloading'
-                self._cancel_requested = False
-                self._pause_event.set()
-                self._save_queue()  # record that this job is now active
-
-            job = self.current_job
-            logger.info(f"[START] Starte Job: '{job.repo_id}' | {job.total_files} Datei(en)")
-
-            for i, filename in enumerate(job.files_to_download):
-                if self._cancel_requested: break
-                self._pause_event.wait()
-                if self._cancel_requested: break
-
-                job.current_file_index = i
-                job.current_file = filename
-                job.current_file_progress = 0
-
-                local_dir = os.path.join(DOWNLOAD_DIR, job.repo_id)
-                local_path = os.path.realpath(os.path.join(local_dir, filename.replace("/", os.sep)))
-                if not local_path.startswith(os.path.realpath(DOWNLOAD_DIR)):
-                    logger.error(f"[SECURITY] Path-Traversal in Dateiname blockiert: '{filename}'")
-                    continue
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-
-                url = hf_hub_url(job.repo_id, filename)
-                file_done = False
-
-                for attempt, retry_delay in enumerate(_FILE_RETRY_DELAYS + [None], start=1):
-                    if self._cancel_requested:
-                        break
-                    try:
-                        # Re-read existing size on every attempt so resume picks up
-                        # exactly where the last attempt left off.
-                        existing_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
-                        req_headers = {}
-                        if existing_size > 0:
-                            req_headers['Range'] = f'bytes={existing_size}-'
-                        if HF_TOKEN:
-                            req_headers['Authorization'] = f'Bearer {HF_TOKEN}'
-
-                        with requests.get(url, stream=True, timeout=30, headers=req_headers) as r:
-                            # 416 = Datei bereits vollständig vorhanden
-                            if r.status_code == 416:
-                                logger.info(f"[SKIP] ({i + 1}/{job.total_files}) '{filename}' – bereits vollständig, übersprungen")
-                                job.current_file_progress = 100
-                                job.total_progress = ((i + 1) / job.total_files) * 100
-                                file_done = True
+        try:
+            while True:
+                job = None
+                with self._lock:
+                    in_window = self.scheduler.is_in_window()
+                    # Priority 1: immediate (non-scheduled) jobs
+                    for i, j in enumerate(self.queue):
+                        if not j.scheduled:
+                            job = self.queue.pop(i)
+                            break
+                    # Priority 2: scheduled jobs — only if window is open
+                    if job is None and in_window:
+                        for i, j in enumerate(self.queue):
+                            if j.scheduled:
+                                job = self.queue.pop(i)
                                 break
 
-                            r.raise_for_status()
+                    if job is None:
+                        if not self.queue:
+                            self.current_job = None
+                            logger.info("[WORKER] Warteschlange leer – Worker beendet")
+                            self._save_queue()
+                            return
+                        # Only scheduled jobs remain, window not open yet — wait
+                    else:
+                        self.current_job = job
+                        job.status = 'downloading'
+                        self._cancel_requested = False
+                        self._reschedule_current = False
+                        self._pause_event.set()
+                        self._save_queue()
 
-                            if r.status_code == 206:
-                                remaining  = int(r.headers.get('content-length', 0))
-                                total_size = existing_size + remaining
-                                downloaded = existing_size
-                                file_mode  = 'ab'
-                                size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
-                                logger.info(f"[RESUME] ({i + 1}/{job.total_files}) '{filename}' | "
-                                            f"Fortsetze ab {_fmt_size(existing_size)} / {size_str}")
-                            else:
-                                total_size = int(r.headers.get('content-length', 0))
-                                downloaded = 0
-                                file_mode  = 'wb'
-                                size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
-                                if existing_size > 0:
-                                    logger.warning(f"[RESTART] Server unterstützt kein Resume – "
-                                                   f"'{filename}' wird neu gestartet (vorher: {_fmt_size(existing_size)})")
+                if job is None:
+                    mins = self.scheduler.minutes_until_window()
+                    logger.info(f"[SCHEDULER] Nur geplante Jobs – warte auf Zeitfenster "
+                                f"({self.scheduler.start}–{self.scheduler.end}, in {mins} min)")
+                    # Wait up to 60s, but wake up immediately if a non-scheduled job arrives
+                    self._wakeup_event.wait(timeout=60)
+                    self._wakeup_event.clear()
+                    continue
+
+                job = self.current_job
+                logger.info(f"[START] Starte Job: '{job.repo_id}' | {job.total_files} Datei(en)")
+
+                for i, filename in enumerate(job.files_to_download):
+                    if self._cancel_requested: break
+                    self._pause_event.wait()
+                    if self._cancel_requested: break
+
+                    job.current_file_index = i
+                    job.current_file = filename
+                    job.current_file_progress = 0
+
+                    local_dir = os.path.join(DOWNLOAD_DIR, job.repo_id)
+                    local_path = os.path.realpath(os.path.join(local_dir, filename.replace("/", os.sep)))
+                    if not local_path.startswith(os.path.realpath(DOWNLOAD_DIR)):
+                        logger.error(f"[SECURITY] Path-Traversal in Dateiname blockiert: '{filename}'")
+                        continue
+                    try:
+                        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    except OSError as e:
+                        logger.error(f"[ERROR] Verzeichnis konnte nicht erstellt werden für '{filename}': {e}")
+                        job.status = 'error'
+                        job.error_message = f"Cannot create directory: {e}"
+                        break
+
+                    url = hf_hub_url(job.repo_id, filename)
+                    file_done = False
+
+                    for attempt, retry_delay in enumerate(_FILE_RETRY_DELAYS + [None], start=1):
+                        if self._cancel_requested:
+                            break
+                        try:
+                            # Re-read existing size on every attempt so resume picks up
+                            # exactly where the last attempt left off.
+                            existing_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+                            req_headers = {}
+                            if existing_size > 0:
+                                req_headers['Range'] = f'bytes={existing_size}-'
+                            if HF_TOKEN:
+                                req_headers['Authorization'] = f'Bearer {HF_TOKEN}'
+
+                            with requests.get(url, stream=True, timeout=(30, 60), headers=req_headers) as r:
+                                # 416 = Datei bereits vollständig vorhanden
+                                if r.status_code == 416:
+                                    logger.info(f"[SKIP] ({i + 1}/{job.total_files}) '{filename}' – bereits vollständig, übersprungen")
+                                    job.current_file_progress = 100
+                                    job.total_progress = ((i + 1) / job.total_files) * 100
+                                    file_done = True
+                                    break
+
+                                r.raise_for_status()
+
+                                if r.status_code == 206:
+                                    remaining  = int(r.headers.get('content-length', 0))
+                                    total_size = existing_size + remaining
+                                    downloaded = existing_size
+                                    file_mode  = 'ab'
+                                    size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
+                                    logger.info(f"[RESUME] ({i + 1}/{job.total_files}) '{filename}' | "
+                                                f"Fortsetze ab {_fmt_size(existing_size)} / {size_str}")
                                 else:
-                                    logger.info(f"[FILE] ({i + 1}/{job.total_files}) '{filename}' | {size_str}")
+                                    total_size = int(r.headers.get('content-length', 0))
+                                    downloaded = 0
+                                    file_mode  = 'wb'
+                                    size_str   = _fmt_size(total_size) if total_size else "unbekannte Größe"
+                                    if existing_size > 0:
+                                        logger.warning(f"[RESTART] Server unterstützt kein Resume – "
+                                                       f"'{filename}' wird neu gestartet (vorher: {_fmt_size(existing_size)})")
+                                    else:
+                                        logger.info(f"[FILE] ({i + 1}/{job.total_files}) '{filename}' | {size_str}")
 
-                            last_logged_pct = int((downloaded / total_size * 100) // 25) * 25 if total_size > 0 else -1
-                            with open(local_path, file_mode) as f:
-                                for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
+                                last_logged_pct = int((downloaded / total_size * 100) // 25) * 25 if total_size > 0 else -1
+                                with open(local_path, file_mode) as f:
+                                    for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
+                                        if self._cancel_requested: break
+                                        self._pause_event.wait()
+                                        if self._cancel_requested: break
+                                        if chunk:
+                                            f.write(chunk)
+                                            downloaded += len(chunk)
+                                            if total_size > 0:
+                                                job.current_file_progress = (downloaded / total_size) * 100
+                                                job.total_progress = ((i + (downloaded / total_size)) / job.total_files) * 100
+                                                pct = int(job.current_file_progress // 25) * 25
+                                                if pct > last_logged_pct and pct > 0:
+                                                    last_logged_pct = pct
+                                                    logger.info(f"[PROGRESS] '{filename}' – {pct}% "
+                                                                f"({_fmt_size(downloaded)} / {size_str}) | "
+                                                                f"Gesamt: {job.total_progress:.1f}%")
+
+                            if self._cancel_requested:
+                                logger.info(f"[CANCEL] '{filename}' unterbrochen bei {_fmt_size(downloaded)} – "
+                                            f"Teildatei bleibt für späteres Resume erhalten")
+                                break
+                            logger.info(f"[DONE] '{filename}' vollständig heruntergeladen ({_fmt_size(downloaded)})")
+                            file_done = True
+                            break  # success — move on to next file
+
+                        except _NET_ERRORS as e:
+                            if self._cancel_requested:
+                                break
+                            if retry_delay is not None:
+                                logger.warning(f"[RETRY] Netzwerkfehler bei '{filename}' "
+                                               f"(Versuch {attempt}/{len(_FILE_RETRY_DELAYS)}): {e} – "
+                                               f"Retry in {retry_delay}s (Resume ab Teildatei)")
+                                # Sleep interruptibly so cancel still works
+                                for _ in range(retry_delay):
                                     if self._cancel_requested: break
-                                    self._pause_event.wait()
-                                    if self._cancel_requested: break
-                                    if chunk:
-                                        f.write(chunk)
-                                        downloaded += len(chunk)
-                                        if total_size > 0:
-                                            job.current_file_progress = (downloaded / total_size) * 100
-                                            job.total_progress = ((i + (downloaded / total_size)) / job.total_files) * 100
-                                            pct = int(job.current_file_progress // 25) * 25
-                                            if pct > last_logged_pct and pct > 0:
-                                                last_logged_pct = pct
-                                                logger.info(f"[PROGRESS] '{filename}' – {pct}% "
-                                                            f"({_fmt_size(downloaded)} / {size_str}) | "
-                                                            f"Gesamt: {job.total_progress:.1f}%")
+                                    time.sleep(1)
+                            else:
+                                logger.error(f"[ERROR] '{filename}' nach {len(_FILE_RETRY_DELAYS)} Retries aufgegeben: {e}")
+                                job.status = 'error'
+                                job.error_message = f"Network error after {len(_FILE_RETRY_DELAYS)} retries: {e}"
 
-                        if self._cancel_requested:
-                            logger.info(f"[CANCEL] '{filename}' unterbrochen bei {_fmt_size(downloaded)} – "
-                                        f"Teildatei bleibt für späteres Resume erhalten")
-                            break
-                        logger.info(f"[DONE] '{filename}' vollständig heruntergeladen ({_fmt_size(downloaded)})")
-                        file_done = True
-                        break  # success — move on to next file
+                        except Exception as e:
+                            if not self._cancel_requested:
+                                job.status = 'error'
+                                job.error_message = f"Failed to download {filename}: {e}"
+                                logger.error(f"[ERROR] Fehler beim Download von '{filename}': {e}")
+                            break  # non-network error — don't retry
 
-                    except _NET_ERRORS as e:
-                        if self._cancel_requested:
-                            break
-                        if retry_delay is not None:
-                            logger.warning(f"[RETRY] Netzwerkfehler bei '{filename}' "
-                                           f"(Versuch {attempt}/{len(_FILE_RETRY_DELAYS)}): {e} – "
-                                           f"Retry in {retry_delay}s (Resume ab Teildatei)")
-                            # Sleep interruptibly so cancel still works
-                            for _ in range(retry_delay):
-                                if self._cancel_requested: break
-                                time.sleep(1)
-                        else:
-                            logger.error(f"[ERROR] '{filename}' nach {len(_FILE_RETRY_DELAYS)} Retries aufgegeben: {e}")
-                            job.status = 'error'
-                            job.error_message = f"Network error after {len(_FILE_RETRY_DELAYS)} retries: {e}"
+                    if job.status == 'error' or self._cancel_requested:
+                        break
 
-                    except Exception as e:
-                        if not self._cancel_requested:
-                            job.status = 'error'
-                            job.error_message = f"Failed to download {filename}: {e}"
-                            logger.error(f"[ERROR] Fehler beim Download von '{filename}': {e}")
-                        break  # non-network error — don't retry
+                with self._lock:
+                    if self._reschedule_current:
+                        # Re-queue as scheduled job instead of cancelling
+                        self._reschedule_current = False
+                        self._cancel_requested = False
+                        job.status = 'queued'
+                        job.current_file_index = 0
+                        job.current_file = ""
+                        job.current_file_progress = 0
+                        job.total_progress = 0
+                        self.queue.insert(0, job)
+                        logger.info(f"[SCHEDULER] '{job.repo_id}' in Scheduler-Queue verschoben")
+                    elif self._cancel_requested:
+                        job.status = 'cancelled'
+                        logger.info(f"[CANCELLED] Job abgebrochen: '{job.repo_id}'")
+                    elif job.status != 'error':
+                        job.status = 'completed'
+                        logger.info(f"[COMPLETED] Job abgeschlossen: '{job.repo_id}' ({job.total_files} Datei(en))")
 
-                if job.status == 'error' or self._cancel_requested:
-                    break
-
+                    if self.current_job == job:
+                        self.current_job = None
+                    self._save_queue()
+        finally:
             with self._lock:
-                if self._cancel_requested:
-                    job.status = 'cancelled'
-                    logger.info(f"[CANCELLED] Job abgebrochen: '{job.repo_id}'")
-                elif job.status != 'error':
-                    job.status = 'completed'
-                    logger.info(f"[COMPLETED] Job abgeschlossen: '{job.repo_id}' ({job.total_files} Datei(en))")
-
-                # After job is done (completed, errored, or cancelled), this job is no longer the current one
-                if self.current_job == job:
-                    self.current_job = None
-                self._save_queue()  # remove finished job from persisted state
+                self._worker_running = False
 
 
 download_manager = DownloadManager()
@@ -438,6 +648,13 @@ _HF_NAME_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]*$')
 def _is_valid_hf_name(name: str) -> bool:
     """Returns True if name looks like a valid HuggingFace org or repo identifier."""
     return bool(_HF_NAME_RE.match(name))
+
+def _has_any_file(directory: str) -> bool:
+    """Returns True if directory contains at least one file anywhere in its subtree."""
+    for _, _, files in os.walk(directory):
+        if files:
+            return True
+    return False
 
 def get_completed_downloads():
     """
@@ -469,15 +686,14 @@ def get_completed_downloads():
                     sub_path = os.path.join(item_path, sub_item)
                     if not os.path.isdir(sub_path):
                         continue
-                    # Only include if it actually contains files
+                    # Only include if it actually contains files (anywhere in subtree)
                     try:
-                        sub_contents = os.listdir(sub_path)
-                        if any(os.path.isfile(os.path.join(sub_path, f)) for f in sub_contents):
+                        if _has_any_file(sub_path):
                             completed.append(f"{item}/{sub_item}")
                     except OSError:
                         continue
-            elif has_files:
-                # Root-level repo (e.g. 'gpt2') with files directly inside
+            elif has_files or _has_any_file(item_path):
+                # Root-level repo (e.g. 'gpt2') with files directly inside or in subdirs
                 completed.append(item)
             # Empty directories are ignored
         except OSError:
@@ -488,7 +704,7 @@ def get_completed_downloads():
 @app.route("/")
 def index():
     """Renders the main page."""
-    return render_template("index.html", completed_downloads=get_completed_downloads())
+    return render_template("index.html", completed_downloads=get_completed_downloads(), app_version=APP_VERSION)
 
 @app.route("/api/list-files", methods=["POST"])
 def list_files_route():
@@ -577,12 +793,48 @@ def repository_status():
         return jsonify({"error": f"Could not get repository status for '{repo_id}': {e}"}), 500
 
 
+@app.route("/api/scheduler", methods=["GET"])
+def get_scheduler():
+    """Returns current scheduler configuration and window status."""
+    sched = download_manager.scheduler
+    return jsonify({
+        **sched.to_dict(),
+        "in_window":            sched.is_in_window(),
+        "minutes_until_window": sched.minutes_until_window(),
+    })
+
+@app.route("/api/scheduler", methods=["POST"])
+def set_scheduler():
+    """Updates scheduler configuration."""
+    data = request.get_json(silent=True) or {}
+    download_manager.scheduler.update(data)
+    path = os.path.join(DATA_DIR, "scheduler.json")
+    try:
+        download_manager.scheduler.save(path)
+        logger.info(f"[SCHEDULER] Config gespeichert: {download_manager.scheduler.to_dict()}")
+        dm = download_manager
+        with dm._lock:
+            has_waiting = any(j.scheduled for j in dm.queue)
+        if has_waiting:
+            with dm._lock:
+                if not dm._worker_running:
+                    dm._worker_running = True
+                    dm._download_thread = threading.Thread(target=dm._download_worker, daemon=True)
+                    dm._download_thread.start()
+                else:
+                    # Worker is sleeping — wake it up immediately so it re-evaluates the window
+                    dm._wakeup_event.set()
+        return jsonify({"message": "Scheduler updated.", **download_manager.scheduler.to_dict()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/download", methods=["POST"])
 def download():
     """Initiates a download."""
     data = request.get_json(silent=True) or {}
-    repo_id = data.get("repo_id", "").strip()
-    files   = data.get("files")
+    repo_id   = data.get("repo_id", "").strip()
+    files     = data.get("files")
+    scheduled = bool(data.get("scheduled", False))
     if not repo_id:
         return jsonify({"error": "No repository ID provided"}), 400
     if not files or not isinstance(files, list):
@@ -590,17 +842,26 @@ def download():
     if _safe_repo_path(repo_id) is None:
         return jsonify({"error": "Invalid repository ID."}), 400
 
-    logger.info(f"[REQUEST] Download angefordert: '{repo_id}' | {len(files)} Datei(en): {', '.join(files)}")
-    success, message = download_manager.add_to_queue(repo_id, files)
+    mode = "geplant" if scheduled else "sofort"
+    logger.info(f"[REQUEST] Download angefordert ({mode}): '{repo_id}' | {len(files)} Datei(en): {', '.join(files)}")
+    success, message = download_manager.add_to_queue(repo_id, files, scheduled)
     if success:
         return jsonify({"message": message})
     else:
-        return jsonify({"error": message}), 409 # 409 Conflict - resource busy
+        return jsonify({"error": message}), 409
 
 @app.route("/download-status")
 def download_status():
     """Returns the current download status."""
     return jsonify(download_manager.get_status())
+
+@app.route("/api/current/to-scheduler", methods=["POST"])
+def current_to_scheduler():
+    """Moves the currently active download into the scheduler queue."""
+    success, message = download_manager.move_current_to_scheduler()
+    if not success:
+        return jsonify({"error": message}), 400
+    return jsonify({"message": message})
 
 @app.route("/pause-download", methods=["POST"])
 def pause_download():
@@ -635,11 +896,172 @@ def remove_queue_item(index):
     download_manager.remove_from_queue(index)
     return jsonify({"message": "Item removed from queue."})
 
+@app.route("/api/queue/start-now/<int:index>", methods=["POST"])
+def queue_start_now(index):
+    """Removes the scheduled flag from a queued job so it starts immediately."""
+    with download_manager._lock:
+        if 0 <= index < len(download_manager.queue):
+            download_manager.queue[index].scheduled = False
+            download_manager._save_queue()
+            download_manager._wakeup_event.set()
+            return jsonify({"message": "Job will start immediately."})
+    return jsonify({"error": "Invalid queue index."}), 400
+
 
 @app.route("/completed")
 def completed():
-    """Returns the list of completed downloads."""
-    return jsonify(get_completed_downloads())
+    """Returns the list of completed downloads, excluding hidden repos."""
+    hidden = _load_hidden()
+    return jsonify([r for r in get_completed_downloads() if r not in hidden])
+
+@app.route("/api/repo/hidden", methods=["GET"])
+def get_hidden_repos():
+    """Returns the list of hidden repo IDs."""
+    return jsonify(sorted(_load_hidden()))
+
+@app.route("/api/repo/hide", methods=["POST"])
+def hide_repo():
+    data    = request.get_json(silent=True) or {}
+    repo_id = data.get("repo_id", "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id required"}), 400
+    hidden = _load_hidden()
+    hidden.add(repo_id)
+    _save_hidden(hidden)
+    return jsonify({"success": True})
+
+@app.route("/api/repo/unhide", methods=["POST"])
+def unhide_repo():
+    data    = request.get_json(silent=True) or {}
+    repo_id = data.get("repo_id", "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id required"}), 400
+    hidden = _load_hidden()
+    hidden.discard(repo_id)
+    _save_hidden(hidden)
+    return jsonify({"success": True})
+
+@app.route("/api/repos/check-hf", methods=["POST"])
+def check_repos_hf():
+    """Batch-checks which repos exist on HuggingFace (lightweight repo_info only, no file listing)."""
+    data  = request.get_json(silent=True) or {}
+    repos = [r for r in data.get("repos", []) if isinstance(r, str)][:50]
+
+    api = HfApi(token=HF_TOKEN or None)
+
+    def _check(repo_id):
+        try:
+            api.repo_info(repo_id=repo_id, repo_type="model")
+            return repo_id, True
+        except RepositoryNotFoundError:
+            return repo_id, False
+        except Exception:
+            return repo_id, None   # unknown — network error etc.
+
+    result = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for repo_id, exists in executor.map(_check, repos):
+            result[repo_id] = exists
+
+    return jsonify(result)
+
+
+@app.route("/api/file", methods=["DELETE"])
+def delete_file():
+    """Deletes a single file from a downloaded repo."""
+    data     = request.get_json(silent=True) or {}
+    repo_id  = data.get("repo_id",  "").strip()
+    filename = data.get("filename", "").strip()
+    if not repo_id or not filename:
+        return jsonify({"error": "repo_id and filename required"}), 400
+
+    # Block if repo is currently downloading or queued
+    status = download_manager.get_status()
+    if status.get("current_job") and status["current_job"].get("repo_id") == repo_id:
+        return jsonify({"error": "Repo is currently downloading"}), 409
+    if any(q.get("repo_id") == repo_id for q in status.get("queue", [])):
+        return jsonify({"error": "Repo is in the download queue"}), 409
+
+    repo_path = _safe_repo_path(repo_id)
+    if not repo_path:
+        return jsonify({"error": "Invalid repo_id"}), 400
+
+    # Resolve and validate file path stays within repo dir
+    file_path = os.path.realpath(os.path.join(repo_path, filename))
+    if not file_path.startswith(os.path.realpath(repo_path) + os.sep):
+        logger.warning(f"[SECURITY] Path-Traversal-Versuch bei Datei: '{filename}'")
+        return jsonify({"error": "Invalid filename"}), 400
+
+    if not os.path.isfile(file_path):
+        return jsonify({"error": "File not found"}), 404
+
+    try:
+        os.remove(file_path)
+        logger.info(f"[DELETE] File '{filename}' from '{repo_id}'")
+
+        # Remove empty parent directories up to (but not including) repo_path
+        parent = os.path.dirname(file_path)
+        while os.path.realpath(parent) != os.path.realpath(repo_path):
+            if not os.listdir(parent):
+                os.rmdir(parent)
+                parent = os.path.dirname(parent)
+            else:
+                break
+
+        # If repo folder has no files left, remove it too
+        repo_empty = not _has_any_file(repo_path)
+        if repo_empty:
+            shutil.rmtree(repo_path)
+            logger.info(f"[DELETE] Empty repo '{repo_id}' removed")
+            # Remove empty parent org-dir
+            org_dir = os.path.dirname(repo_path)
+            if org_dir != os.path.realpath(DOWNLOAD_DIR) and os.path.isdir(org_dir):
+                if not os.listdir(org_dir):
+                    os.rmdir(org_dir)
+
+        return jsonify({"success": True, "repo_deleted": repo_empty})
+    except Exception as e:
+        logger.error(f"[DELETE] Failed to remove file '{filename}' from '{repo_id}': {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/repo", methods=["DELETE"])
+def delete_repo():
+    """Deletes a downloaded repo folder and all its contents."""
+    data    = request.get_json(silent=True) or {}
+    repo_id = data.get("repo_id", "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id required"}), 400
+
+    # Block if repo is currently downloading or queued
+    status = download_manager.get_status()
+    if status.get("current_job") and status["current_job"].get("repo_id") == repo_id:
+        return jsonify({"error": "Repo is currently downloading"}), 409
+    if any(q.get("repo_id") == repo_id for q in status.get("queue", [])):
+        return jsonify({"error": "Repo is in the download queue"}), 409
+
+    repo_path = _safe_repo_path(repo_id)
+    if not repo_path:
+        return jsonify({"error": "Invalid repo_id"}), 400
+    if not os.path.exists(repo_path):
+        return jsonify({"error": "Repo not found"}), 404
+
+    try:
+        shutil.rmtree(repo_path)
+        logger.info(f"[DELETE] Repo '{repo_id}' removed")
+
+        # Also remove empty parent org-dir (e.g. 'meta-llama' if now empty)
+        parent = os.path.dirname(repo_path)
+        if parent != os.path.realpath(DOWNLOAD_DIR) and os.path.isdir(parent):
+            if not os.listdir(parent):
+                os.rmdir(parent)
+                logger.info(f"[DELETE] Empty org dir '{os.path.basename(parent)}' removed")
+
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"[DELETE] Failed to remove repo '{repo_id}': {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/search-models", methods=["POST"])
 def search_models():

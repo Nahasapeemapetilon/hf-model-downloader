@@ -16,9 +16,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const completedListUl        = document.getElementById("completed-list");
     const themeToggle            = document.getElementById("theme-toggle");
 
-    let progressInterval  = null;
-    let currentRepoId     = '';
-    let trendingLoaded    = false;
+    let progressTimeout      = null;
+    let currentRepoId        = '';
+    let trendingLoaded       = false;
+    let repoFilter           = localStorage.getItem('repoFilter') || 'all'; // 'all' | 'hf' | 'local'
+
+    // Repos confirmed as "not on HuggingFace"
+    const localOnlyRepos  = new Set(JSON.parse(localStorage.getItem('localOnlyRepos')  || '[]'));
+    // Repos confirmed as existing on HuggingFace
+    const confirmedHFRepos = new Set(JSON.parse(localStorage.getItem('confirmedHFRepos') || '[]'));
+
+    function saveLocalOnlyCache() {
+        localStorage.setItem('localOnlyRepos',   JSON.stringify([...localOnlyRepos]));
+        localStorage.setItem('confirmedHFRepos', JSON.stringify([...confirmedHFRepos]));
+    }
 
     // ============================================================
     // THEME TOGGLE
@@ -211,8 +222,10 @@ document.addEventListener("DOMContentLoaded", function () {
         if (sizeEl)  sizeEl.textContent  = formatBytes(totalBytes);
 
         const downloadBtn  = document.getElementById('start-download-btn');
+        const scheduleBtn  = document.getElementById('schedule-download-btn');
         const countBadge   = document.getElementById('download-btn-count');
         if (downloadBtn) downloadBtn.disabled = count === 0;
+        if (scheduleBtn) scheduleBtn.disabled = count === 0;
         if (countBadge) {
             if (count > 0) {
                 countBadge.textContent   = count;
@@ -243,14 +256,25 @@ document.addEventListener("DOMContentLoaded", function () {
         queue.forEach((job, index) => {
             const li = document.createElement('li');
             li.className = 'queue-item';
+            const clockIcon = job.scheduled
+                ? `<svg class="queue-scheduled-icon" title="Scheduled" width="13" height="13" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                       <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                   </svg>`
+                : '';
             li.innerHTML = `
                 <div class="queue-position">${index + 1}</div>
                 <div class="queue-item-info">
-                    <div class="queue-repo-name truncate" title="${escapeHtml(job.repo_id)}">${escapeHtml(job.repo_id)}</div>
+                    <div class="queue-repo-name truncate" title="${escapeHtml(job.repo_id)}">
+                        ${clockIcon}${escapeHtml(job.repo_id)}
+                    </div>
                     <div class="queue-file-count">${job.total_files} file${job.total_files !== 1 ? 's' : ''}</div>
                 </div>
-                <span class="queue-status-badge">${escapeHtml(job.status)}</span>
+                <span class="queue-status-badge ${job.scheduled ? 'badge-scheduled' : ''}">${escapeHtml(job.status)}</span>
                 <div class="queue-item-controls">
+                    ${job.scheduled ? `<button class="queue-start-now-btn" data-index="${index}"
+                            aria-label="Start now" title="Start immediately">▶</button>` : ''}
                     <button class="queue-move-btn move-up-btn" data-index="${index}"
                             ${index === 0 ? 'disabled' : ''} aria-label="Move up" title="Move up">▲</button>
                     <button class="queue-move-btn move-down-btn" data-index="${index}"
@@ -293,6 +317,29 @@ document.addEventListener("DOMContentLoaded", function () {
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                         </svg>
                     </button>
+                    <button class="btn btn-ghost btn-icon btn-sm repo-hide-btn"
+                            data-repo="${escapeHtml(repo)}" title="Hide repo from list"
+                            aria-label="Hide repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                    </button>
+                    <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
+                            data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
+                            aria-label="Delete repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                    </button>
                     <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -318,17 +365,28 @@ document.addEventListener("DOMContentLoaded", function () {
                         <button class="btn btn-ghost btn-sm select-all-local-btn">All</button>
                         <button class="btn btn-ghost btn-sm deselect-all-local-btn">None</button>
                     </div>
-                    <button class="btn btn-primary btn-sm download-updates-btn"
-                            data-repo="${escapeHtml(repo)}" style="display:none;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2.5"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Download Updates
-                    </button>
+                    <div class="local-controls-right">
+                        <button class="btn btn-primary btn-sm download-updates-btn"
+                                data-repo="${escapeHtml(repo)}" data-scheduled="false" style="display:none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.5"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Download Now
+                        </button>
+                        <button class="btn btn-secondary btn-sm schedule-updates-btn"
+                                data-repo="${escapeHtml(repo)}" data-scheduled="true" style="display:none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.5"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            Schedule
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -343,6 +401,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const statsBar     = card.querySelector('.sync-stats-bar');
         const localControls = card.querySelector('.local-list-controls');
         const downloadBtn  = card.querySelector('.download-updates-btn');
+        const scheduleBtn  = card.querySelector('.schedule-updates-btn');
         const refreshIcon  = card.querySelector('.refresh-icon');
 
         // Show skeleton
@@ -351,6 +410,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (statsBar)   statsBar.style.display = 'none';
         if (localControls) localControls.style.display = 'none';
         if (downloadBtn)   downloadBtn.style.display = 'none';
+        if (scheduleBtn)   scheduleBtn.style.display = 'none';
         if (refreshIcon)   refreshIcon.classList.add('is-loading');
 
         try {
@@ -368,6 +428,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const statusList = await response.json();
             if (skeleton) skeleton.style.display = 'none';
+
+            // Repo confirmed on HF — update both caches
+            confirmedHFRepos.add(repoId);
+            if (localOnlyRepos.has(repoId)) {
+                localOnlyRepos.delete(repoId);
+                saveLocalOnlyCache();
+            }
 
             // Count stats
             const counts = { synced: 0, not_downloaded: 0, outdated: 0, local_only: 0 };
@@ -390,7 +457,8 @@ document.addEventListener("DOMContentLoaded", function () {
             let hasDownloadable = false;
 
             statusList.forEach(file => {
-                const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
+                const canDownload  = file.status === 'not_downloaded' || file.status === 'outdated';
+                const canDelete    = file.status === 'synced';
                 if (canDownload) hasDownloadable = true;
 
                 const checkboxId = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -401,6 +469,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
                     <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
                     <span class="file-size">${formatBytes(file.size)}</span>
+                    ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="Delete file" aria-label="Delete ${escapeHtml(file.name)}">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                    </button>` : ''}
                 `;
                 fileList.appendChild(li);
             });
@@ -408,11 +484,16 @@ document.addEventListener("DOMContentLoaded", function () {
             if (hasDownloadable && localControls && downloadBtn) {
                 localControls.style.display = 'flex';
                 downloadBtn.style.display   = 'inline-flex';
+                if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
             }
 
         } catch (error) {
             if (skeleton) skeleton.style.display = 'none';
             if (error.notFound) {
+                // Mark as local-only so the HF filter can exclude it
+                localOnlyRepos.add(repoId);
+                saveLocalOnlyCache();
+
                 fileList.innerHTML = `
                     <li class="repo-not-found">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -431,27 +512,76 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function renderCompletedList(completed) {
+        const visible = repoFilter === 'hf'
+            ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
+            : repoFilter === 'local'
+                ? completed.filter(r => !r.includes('/') || localOnlyRepos.has(r))
+                : completed;
+
+        completedListUl.innerHTML = '';
+
+        const countBadge = document.getElementById('completed-count-badge');
+        const emptyState = completedListUl.parentElement.querySelector('.empty-state');
+
+        if (countBadge) countBadge.textContent = visible.length;
+
+        if (visible.length === 0) {
+            if (emptyState) emptyState.style.display = 'flex';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+
+        visible.forEach(repo => {
+            completedListUl.appendChild(createRepoCard(repo));
+        });
+    }
+
+    async function checkReposOnHF(repos) {
+        // Only check repos not yet in either cache
+        const unknown = repos.filter(r => !localOnlyRepos.has(r) && !confirmedHFRepos.has(r));
+        if (unknown.length === 0) return false;
+
+        try {
+            const resp = await fetch('/api/repos/check-hf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repos: unknown })
+            });
+            if (!resp.ok) return false;
+            const hfStatus = await resp.json();
+            let changed = false;
+            for (const [repo, exists] of Object.entries(hfStatus)) {
+                if (exists === false) {
+                    if (!localOnlyRepos.has(repo)) { localOnlyRepos.add(repo); changed = true; }
+                    confirmedHFRepos.delete(repo);
+                } else if (exists === true) {
+                    if (localOnlyRepos.has(repo)) { localOnlyRepos.delete(repo); changed = true; }
+                    confirmedHFRepos.add(repo);
+                }
+                // exists === null means network error — leave uncached, retry next time
+            }
+            if (changed) saveLocalOnlyCache();
+            return changed;
+        } catch {
+            return false;
+        }
+    }
+
     async function updateCompletedList() {
         try {
             const response  = await fetch("/completed");
             const completed = await response.json();
 
-            completedListUl.innerHTML = '';
+            // Phase 1: render immediately using cached HF knowledge
+            renderCompletedList(completed);
 
-            const countBadge = document.getElementById('completed-count-badge');
-            const emptyState = completedListUl.parentElement.querySelector('.empty-state');
-
-            if (countBadge) countBadge.textContent = completed.length;
-
-            if (completed.length === 0) {
-                if (emptyState) emptyState.style.display = 'flex';
-                return;
+            // Phase 2: check only repos not yet in either cache
+            const toCheck = completed.filter(r => r.includes('/'));
+            if (toCheck.length > 0) {
+                const changed = await checkReposOnHF(toCheck);
+                if (changed) renderCompletedList(completed);
             }
-            if (emptyState) emptyState.style.display = 'none';
-
-            completed.forEach(repo => {
-                completedListUl.appendChild(createRepoCard(repo));
-            });
         } catch (error) {
             console.error("Error fetching completed list:", error);
         }
@@ -461,15 +591,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // POLLING & DOWNLOAD STATUS
     // ============================================================
     function startPollingProgress() {
-        if (!progressInterval) {
-            progressInterval = setInterval(updateDownloadProgress, 1000);
+        if (!progressTimeout) {
             updateDownloadProgress();
         }
     }
 
     function stopPollingProgress() {
-        clearInterval(progressInterval);
-        progressInterval = null;
+        clearTimeout(progressTimeout);
+        progressTimeout = null;
 
         const container = document.getElementById('download-status-container');
         if (container) container.style.display = 'none';
@@ -486,11 +615,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             updateStatusPill(status.status);
             renderQueue(status.queue);
-
-            if (status.status === 'idle' && (!status.queue || status.queue.length === 0)) {
-                stopPollingProgress();
-                return;
-            }
+            if (status.scheduler) updateSchedulerUI(status.scheduler);
 
             const container = document.getElementById('download-status-container');
             const badge     = document.getElementById('download-status-badge');
@@ -517,16 +642,22 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Page title
                 document.title = `↓ ${pct}% | HF Downloader`;
 
+                const toSchedulerBtn = document.getElementById('to-scheduler-btn');
+                const schedulerEnabled = status.scheduler && status.scheduler.enabled;
+
                 if (status.status === 'downloading') {
                     container.classList.add('is-downloading');
                     if (badge) { badge.textContent = 'DOWNLOADING'; badge.className = 'badge badge-info badge-pulse'; }
                     document.getElementById('pause-btn').style.display  = 'inline-flex';
                     document.getElementById('resume-btn').style.display = 'none';
+                    // Show "To Scheduler" only if scheduler is enabled and job is not already scheduled
+                    if (toSchedulerBtn) toSchedulerBtn.style.display = schedulerEnabled ? 'inline-flex' : 'none';
                 } else {
                     container.classList.add('is-paused');
                     if (badge) { badge.textContent = 'PAUSED'; badge.className = 'badge badge-warning'; }
                     document.getElementById('pause-btn').style.display  = 'none';
                     document.getElementById('resume-btn').style.display = 'inline-flex';
+                    if (toSchedulerBtn) toSchedulerBtn.style.display = 'none';
                 }
             } else {
                 container.style.display = 'none';
@@ -535,6 +666,19 @@ document.addEventListener("DOMContentLoaded", function () {
             if (status.error) {
                 showToast('error', 'Download Failed', status.error);
             }
+
+            // Determine next poll interval based on status
+            let nextInterval;
+            if (status.status === 'idle' && (!status.queue || status.queue.length === 0)) {
+                stopPollingProgress();
+                return;
+            } else if (status.status === 'downloading' || status.status === 'paused') {
+                nextInterval = 1000; // Fast polling during active download
+            } else {
+                nextInterval = 5000; // Slow polling when idle but queue has items
+            }
+
+            progressTimeout = setTimeout(updateDownloadProgress, nextInterval);
 
         } catch (error) {
             console.error("Error fetching status:", error);
@@ -689,11 +833,35 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // No slash → treat as org/user → open Explore with pre-filled search
+        if (!currentRepoId.includes('/')) {
+            if (modelSearchInput) modelSearchInput.value = currentRepoId;
+            browseState.query = currentRepoId;
+            // Open Explore section if collapsed
+            if (trendingContent.style.display === 'none') {
+                trendingToggle.click();
+            }
+            loadBrowseResults();
+            trendingContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            repoIdInput.value = '';
+            currentRepoId = '';
+            return;
+        }
+
         const btn       = document.getElementById('list-files-btn');
         const label     = btn.querySelector('.btn-label');
         const spinner   = document.getElementById('list-files-spinner');
         const errorEl   = document.getElementById('finder-error');
         const errorText = document.getElementById('finder-error-text');
+
+        // Validate repo ID format: org/repo — both parts must be valid HF identifiers
+        const HF_REPO_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+        if (!HF_REPO_RE.test(currentRepoId)) {
+            errorText.textContent = 'Invalid repo ID. Expected format: owner/repo-name';
+            errorEl.style.display = 'flex';
+            repoIdInput.focus();
+            return;
+        }
         const infoBar   = document.getElementById('repo-info-bar');
 
         btn.disabled             = true;
@@ -721,6 +889,7 @@ document.addEventListener("DOMContentLoaded", function () {
             fileSelectionContainer.style.display = 'block';
             if (fileFilterInput) fileFilterInput.value = '';
             renderFileList(files);
+            fileSelectionContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         } catch (error) {
             errorText.textContent = error.message;
@@ -748,19 +917,17 @@ document.addEventListener("DOMContentLoaded", function () {
     // ============================================================
     // EVENT LISTENERS — File Selection
     // ============================================================
-    downloadSelectionForm.addEventListener("submit", async function (event) {
-        event.preventDefault();
+    async function submitDownload(scheduled) {
         const selectedFiles = getSelectedFiles();
         if (selectedFiles.length === 0) {
             showToast('warning', 'No files selected', 'Please select at least one file to download.');
             return;
         }
-
         try {
             const response = await fetch("/download", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ repo_id: currentRepoId, files: selectedFiles })
+                body: JSON.stringify({ repo_id: currentRepoId, files: selectedFiles, scheduled })
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
@@ -770,12 +937,28 @@ document.addEventListener("DOMContentLoaded", function () {
             repoIdInput.value = '';
             currentRepoId = '';
 
-            showToast('success', 'Added to queue', `${selectedFiles.length} file(s) queued for download.`);
+            const label = scheduled ? 'Added to scheduler' : 'Added to queue';
+            const detail = scheduled
+                ? `${selectedFiles.length} file(s) will download during the scheduled window.`
+                : `${selectedFiles.length} file(s) queued for download.`;
+            showToast('success', label, detail);
             startPollingProgress();
         } catch (error) {
             showToast('error', 'Download Error', error.message || 'An unknown error occurred.');
         }
+    }
+
+    downloadSelectionForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        await submitDownload(false);
     });
+
+    const scheduleDownloadBtn = document.getElementById('schedule-download-btn');
+    if (scheduleDownloadBtn) {
+        scheduleDownloadBtn.addEventListener('click', async () => {
+            await submitDownload(true);
+        });
+    }
 
     if (fileFilterInput) {
         fileFilterInput.addEventListener('input', function () {
@@ -806,6 +989,8 @@ document.addEventListener("DOMContentLoaded", function () {
             url = `/api/queue/move/${index}/down`;
         } else if (target.classList.contains('remove-btn')) {
             url = `/api/queue/remove/${index}`;
+        } else if (target.classList.contains('queue-start-now-btn')) {
+            url = `/api/queue/start-now/${index}`;
         } else {
             return;
         }
@@ -828,6 +1013,16 @@ document.addEventListener("DOMContentLoaded", function () {
         () => fetch("/resume-download", { method: "POST" }));
     document.getElementById('cancel-btn').addEventListener('click',
         () => fetch("/cancel-download", { method: "POST" }));
+    document.getElementById('to-scheduler-btn').addEventListener('click', async () => {
+        try {
+            const response = await fetch("/api/current/to-scheduler", { method: "POST" });
+            const result   = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            showToast('info', 'Moved to Scheduler', result.message);
+        } catch (err) {
+            showToast('error', 'Error', err.message || 'Could not move to scheduler.');
+        }
+    });
 
     // ============================================================
     // EVENT LISTENERS — Completed Downloads
@@ -841,6 +1036,112 @@ document.addEventListener("DOMContentLoaded", function () {
         const body        = card.querySelector('.repo-card-body');
         const fileList    = card.querySelector('.local-file-list');
         const downloadBtn = card.querySelector('.download-updates-btn');
+
+        // Hide repo
+        if (target.closest('.repo-hide-btn')) {
+            try {
+                const response = await fetch('/api/repo/hide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                if (!response.ok) throw new Error((await response.json()).error);
+                card.remove();
+                const countBadge = document.getElementById('completed-count-badge');
+                if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                if (showHidden) await loadHiddenRepos();
+                showToast('info', 'Repo hidden', `"${repoId}" is hidden. Use the eye button to show hidden repos.`);
+            } catch (err) {
+                showToast('error', 'Hide failed', err.message || 'Could not hide repo.');
+            }
+            return;
+        }
+
+        // Unhide repo
+        if (target.closest('.repo-unhide-btn')) {
+            try {
+                const response = await fetch('/api/repo/unhide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                if (!response.ok) throw new Error((await response.json()).error);
+                card.remove();
+                await updateCompletedList();
+                showToast('success', 'Repo restored', `"${repoId}" is visible again.`);
+            } catch (err) {
+                showToast('error', 'Unhide failed', err.message || 'Could not unhide repo.');
+            }
+            return;
+        }
+
+        // Delete repo button
+        if (target.closest('.repo-delete-btn')) {
+            if (!confirm(`Delete "${repoId}" and all its files from disk?\nThis cannot be undone.`)) return;
+            try {
+                const response = await fetch('/api/repo', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+
+                card.remove();
+                localOnlyRepos.delete(repoId);
+                confirmedHFRepos.delete(repoId);
+                saveLocalOnlyCache();
+                // Also remove from hidden list if it was hidden
+                await fetch('/api/repo/unhide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                }).catch(() => {});
+                if (!card.classList.contains('is-hidden-repo')) {
+                    const countBadge = document.getElementById('completed-count-badge');
+                    if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                }
+                showToast('success', 'Repo deleted', `"${repoId}" removed from disk.`);
+            } catch (err) {
+                showToast('error', 'Delete failed', err.message || 'Could not delete repo.');
+            }
+            return;
+        }
+
+        // Delete single file
+        if (target.closest('.file-delete-btn')) {
+            const btn      = target.closest('.file-delete-btn');
+            const filename = btn.dataset.file;
+            if (!confirm(`Delete "${filename}"?\nIt will need to be re-downloaded from HuggingFace.`)) return;
+            try {
+                const response = await fetch('/api/file', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId, filename })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+
+                if (result.repo_deleted) {
+                    // Whole repo is gone — remove card and update counter
+                    card.remove();
+                    localOnlyRepos.delete(repoId);
+                    confirmedHFRepos.delete(repoId);
+                    saveLocalOnlyCache();
+                    const countBadge = document.getElementById('completed-count-badge');
+                    if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                    showToast('success', 'File deleted', `Last file removed — repo "${repoId}" cleaned up.`);
+                } else {
+                    // Remove just this file row and refresh stats
+                    btn.closest('li').remove();
+                    await refreshRepoStatus(card);
+                    showToast('success', 'File deleted', `"${filename}" removed.`);
+                }
+            } catch (err) {
+                showToast('error', 'Delete failed', err.message || 'Could not delete file.');
+            }
+            return;
+        }
 
         // Header click → toggle expand
         if (target.closest('.repo-card-header') && !target.closest('.update-btn')) {
@@ -859,8 +1160,10 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Download updates button
-        if (target.closest('.download-updates-btn')) {
+        // Download Now / Schedule buttons on repo cards
+        const updateBtn = target.closest('.download-updates-btn') || target.closest('.schedule-updates-btn');
+        if (updateBtn) {
+            const scheduled = updateBtn.dataset.scheduled === 'true';
             const filesToDownload = Array.from(
                 fileList.querySelectorAll('.download-update-cb:checked')
             ).map(cb => cb.value);
@@ -874,13 +1177,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 const response = await fetch("/download", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ repo_id: repoId, files: filesToDownload })
+                    body: JSON.stringify({ repo_id: repoId, files: filesToDownload, scheduled })
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
 
-                showToast('success', 'Added to queue',
-                    `${filesToDownload.length} file(s) queued for download.`);
+                const label  = scheduled ? 'Added to scheduler' : 'Added to queue';
+                const detail = scheduled
+                    ? `${filesToDownload.length} file(s) will download during the scheduled window.`
+                    : `${filesToDownload.length} file(s) queued for download.`;
+                showToast('success', label, detail);
                 startPollingProgress();
             } catch (error) {
                 showToast('error', 'Download Error', error.message || 'An unknown error occurred.');
@@ -896,6 +1202,193 @@ document.addEventListener("DOMContentLoaded", function () {
             card.querySelectorAll('.download-update-cb').forEach(cb => cb.checked = false);
         }
     });
+
+    // ============================================================
+    // SCHEDULER UI
+    // ============================================================
+    let schedulerDirty = false;  // true = user has unsaved changes → ignore poll updates
+
+    // Mark dirty when user touches any scheduler control
+    document.querySelectorAll('#scheduler-enabled, #scheduler-start, #scheduler-end, .day-pill input')
+        .forEach(el => el.addEventListener('change', () => { schedulerDirty = true; }));
+
+    function updateSchedulerUI(sched) {
+        if (!sched) return;
+        const enabledCb  = document.getElementById('scheduler-enabled');
+        const startInput = document.getElementById('scheduler-start');
+        const endInput   = document.getElementById('scheduler-end');
+        const badge      = document.getElementById('scheduler-status-badge');
+        const nextWin    = document.getElementById('scheduler-next-window');
+
+        // Only update form fields if user has no unsaved changes
+        if (!schedulerDirty) {
+            if (enabledCb)  enabledCb.checked = sched.enabled;
+            if (startInput) startInput.value  = sched.start;
+            if (endInput)   endInput.value    = sched.end;
+            document.querySelectorAll('.day-pill input[type="checkbox"]').forEach(cb => {
+                cb.checked = sched.days.includes(parseInt(cb.value));
+            });
+        }
+
+        // Status badge
+        if (badge) {
+            if (!sched.enabled) {
+                badge.textContent  = 'Off';
+                badge.className    = 'badge';
+            } else if (sched.in_window) {
+                badge.textContent  = 'Active';
+                badge.className    = 'badge badge-active';
+            } else {
+                badge.textContent  = 'Waiting';
+                badge.className    = 'badge badge-waiting';
+            }
+        }
+
+        // Next window info
+        if (nextWin) {
+            if (sched.enabled && !sched.in_window) {
+                const h = Math.floor(sched.minutes_until_window / 60);
+                const m = sched.minutes_until_window % 60;
+                const timeStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
+                nextWin.textContent  = `Next window starts at ${sched.start} (in ${timeStr})`;
+                nextWin.style.display = 'block';
+            } else {
+                nextWin.style.display = 'none';
+            }
+        }
+    }
+
+    // Load scheduler config on page load
+    fetch('/api/scheduler')
+        .then(r => r.json())
+        .then(updateSchedulerUI)
+        .catch(() => {});
+
+    // Also update from status polling (already in the poll response)
+    const _origUpdateStatus = window._updateStatusCallback;
+
+    // Save scheduler
+    const schedulerSaveBtn = document.getElementById('scheduler-save-btn');
+    if (schedulerSaveBtn) {
+        schedulerSaveBtn.addEventListener('click', async () => {
+            const enabled = document.getElementById('scheduler-enabled').checked;
+            const start   = document.getElementById('scheduler-start').value;
+            const end     = document.getElementById('scheduler-end').value;
+            const days    = Array.from(
+                document.querySelectorAll('.day-pill input[type="checkbox"]:checked')
+            ).map(cb => parseInt(cb.value));
+
+            try {
+                const response = await fetch('/api/scheduler', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ enabled, start, end, days }),
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                schedulerDirty = false;
+                updateSchedulerUI({ ...result, in_window: result.in_window, minutes_until_window: result.minutes_until_window });
+                showToast('success', 'Scheduler saved', enabled
+                    ? `Active ${start}–${end}`
+                    : 'Scheduler disabled.');
+            } catch (err) {
+                showToast('error', 'Save failed', err.message || 'Could not save scheduler.');
+            }
+        });
+    }
+
+    // ============================================================
+    // FILTER BUTTON GROUP — All / HF only / Local only
+    // ============================================================
+    const repoFilterBtns = document.querySelectorAll('.repo-filter-btn');
+    repoFilterBtns.forEach(btn => {
+        if (btn.dataset.filter === repoFilter) btn.classList.add('is-active');
+        else btn.classList.remove('is-active');
+
+        btn.addEventListener('click', () => {
+            repoFilter = btn.dataset.filter;
+            localStorage.setItem('repoFilter', repoFilter);
+            repoFilterBtns.forEach(b => b.classList.toggle('is-active', b === btn));
+            updateCompletedList();
+        });
+    });
+
+    // ============================================================
+    // SHOW HIDDEN TOGGLE
+    // ============================================================
+    let showHidden = false;
+    const showHiddenBtn = document.getElementById('show-hidden-btn');
+
+    async function loadHiddenRepos() {
+        try {
+            const resp = await fetch('/api/repo/hidden');
+            const hidden = await resp.json();
+            const existingHidden = completedListUl.querySelectorAll('.repo-card.is-hidden-repo');
+            existingHidden.forEach(el => el.remove());
+
+            hidden.forEach(repo => {
+                const card = createHiddenRepoCard(repo);
+                completedListUl.appendChild(card);
+            });
+        } catch (e) {
+            console.error('Error loading hidden repos:', e);
+        }
+    }
+
+    function createHiddenRepoCard(repo) {
+        const li = document.createElement('li');
+        li.className = 'repo-card completed-item is-hidden-repo';
+        li.dataset.repo = repo;
+        li.innerHTML = `
+            <div class="repo-card-header">
+                <div class="repo-card-title">
+                    <svg class="repo-type-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span class="repo-card-name truncate" title="${escapeHtml(repo)}">${escapeHtml(repo)}</span>
+                </div>
+                <div class="repo-card-actions">
+                    <button class="btn btn-ghost btn-icon btn-sm repo-unhide-btn"
+                            data-repo="${escapeHtml(repo)}" title="Unhide repo" aria-label="Unhide repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                    <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
+                            data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
+                            aria-label="Delete repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+        return li;
+    }
+
+    if (showHiddenBtn) {
+        showHiddenBtn.addEventListener('click', async () => {
+            showHidden = !showHidden;
+            showHiddenBtn.classList.toggle('is-active', showHidden);
+            showHiddenBtn.setAttribute('aria-pressed', showHidden);
+            if (showHidden) {
+                await loadHiddenRepos();
+            } else {
+                completedListUl.querySelectorAll('.is-hidden-repo').forEach(el => el.remove());
+            }
+        });
+    }
 
     // ============================================================
     // INITIAL LOAD

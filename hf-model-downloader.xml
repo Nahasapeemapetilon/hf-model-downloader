@@ -23,53 +23,9 @@
   <Description>Web UI to browse and download models from HuggingFace Hub. Features: file browser, download queue with pause/resume/cancel, sync status comparison, explore/search with tag and sort filters, optional Basic Auth, and HF Token support for private repos.</Description>
   <Networking>
     <Mode>bridge</Mode>
-    <Publish>
-      <Port>
-        <HostPort>5000</HostPort>
-        <ContainerPort>5000</ContainerPort>
-        <Protocol>tcp</Protocol>
-      </Port>
-    </Publish>
   </Networking>
-  <Data>
-    <Volume>
-      <HostDir>/mnt/user/appdata/hf-model-downloader</HostDir>
-      <ContainerDir>/app/data</ContainerDir>
-      <Mode>rw</Mode>
-    </Volume>
-    <Volume>
-      <HostDir>/mnt/user/appdata/hf-model-downloader/downloads</HostDir>
-      <ContainerDir>/app/downloads</ContainerDir>
-      <Mode>rw</Mode>
-    </Volume>
-  </Data>
-  <Environment>
-    <Variable>
-      <Value>/app/data</Value>
-      <Name>DATA_DIR</Name>
-      <Mode/>
-    </Variable>
-    <Variable>
-      <Value/>
-      <Name>HF_TOKEN</Name>
-      <Mode/>
-    </Variable>
-    <Variable>
-      <Value/>
-      <Name>AUTH_USER</Name>
-      <Mode/>
-    </Variable>
-    <Variable>
-      <Value/>
-      <Name>AUTH_PASS</Name>
-      <Mode/>
-    </Variable>
-    <Variable>
-      <Value>false</Value>
-      <Name>FLASK_DEBUG</Name>
-      <Mode/>
-    </Variable>
-  </Environment>
+  <Data/>
+  <Environment/>
   <Labels/>
 
   <!-- Port -->

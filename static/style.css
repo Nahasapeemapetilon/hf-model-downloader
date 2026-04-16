@@ -1036,6 +1036,25 @@ a { color: inherit; text-decoration: none; }
     cursor: not-allowed;
 }
 
+.queue-start-now-btn {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all var(--transition-fast);
+    font-family: inherit;
+    line-height: 1;
+}
+
+.queue-start-now-btn:hover {
+    background: var(--color-success-bg, rgba(34,197,94,0.1));
+    color: var(--color-success, #22c55e);
+    border-color: rgba(34,197,94,0.2);
+}
+
 .queue-remove-btn {
     padding: 4px 8px;
     background: transparent;
@@ -1247,6 +1266,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .local-controls-left { display: flex; gap: var(--space-1); }
+
+.local-controls-right { display: flex; gap: var(--space-1); flex-wrap: wrap; }
 
 /* Empty State */
 .empty-state {
@@ -1726,8 +1747,270 @@ a { color: inherit; text-decoration: none; }
     box-shadow: var(--shadow-sm);
 }
 
+/* ============================================================
+   SCHEDULER
+   ============================================================ */
+.download-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* Scheduled badge in queue */
+.badge-scheduled {
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.queue-scheduled-icon {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+    color: #a78bfa;
+    flex-shrink: 0;
+}
+
+/* Scheduler section */
+.scheduler-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-2);
+}
+
+.scheduler-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.toggle-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-primary);
+}
+
+.scheduler-time-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.scheduler-time-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+
+.scheduler-time-field label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: var(--font-medium);
+}
+
+.scheduler-time-sep {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding-top: 14px;
+}
+
+.scheduler-days {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.scheduler-days-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: var(--font-medium);
+}
+
+.day-pills {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.day-pill {
+    position: relative;
+    cursor: pointer;
+}
+
+.day-pill input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.day-pill span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: var(--font-medium);
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    transition: all var(--transition-fast);
+    user-select: none;
+}
+
+.day-pill input:checked + span {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--accent-primary);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+.scheduler-next-window {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: var(--bg-surface-2);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    border-left: 2px solid #a78bfa;
+}
+
+/* Status badges */
+.badge-active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-waiting {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 @media print {
     .topbar, .sidebar, .toast-container { display: none; }
     .main-content { padding: 0; }
     .card { box-shadow: none; border: 1px solid #ccc; }
+}
+
+/* ------------------------------------------------------------
+   Repo Filter Button Group — All / HF only / Local only
+   ------------------------------------------------------------ */
+.repo-filter-group {
+    display: flex;
+    align-items: center;
+    background: var(--bg-surface-3);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 1px;
+}
+
+.repo-filter-btn {
+    font-size: 0.7rem;
+    font-weight: var(--font-medium);
+    font-family: inherit;
+    padding: 2px 7px;
+    border-radius: calc(var(--radius-sm) - 2px);
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    line-height: 1.6;
+}
+
+.repo-filter-btn:hover {
+    color: var(--text-secondary);
+}
+
+.repo-filter-btn.is-active {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Show-hidden button active state */
+#show-hidden-btn.is-active {
+    color: var(--accent-500);
+}
+
+/* Hidden repo cards — grayed out */
+.repo-card.is-hidden-repo {
+    opacity: 0.45;
+    border-style: dashed;
+}
+
+.repo-card.is-hidden-repo:hover {
+    opacity: 0.75;
+}
+
+/* Unhide button — green hover */
+.repo-unhide-btn:hover {
+    color: var(--color-success) !important;
+    background: var(--color-success-bg) !important;
+}
+
+/* ------------------------------------------------------------
+   App Footer
+   ------------------------------------------------------------ */
+.app-footer {
+    text-align: center;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.app-footer-sep {
+    opacity: 0.4;
+}
+
+.app-footer-version {
+    font-family: var(--font-mono, monospace);
+    opacity: 0.7;
+}
+
+/* Repo delete button — red hover */
+.repo-delete-btn:hover {
+    color: var(--color-error) !important;
+    background: var(--color-error-bg) !important;
+}
+
+/* File delete button */
+.file-delete-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.status-file-item:hover .file-delete-btn {
+    opacity: 1;
+}
+
+.file-delete-btn:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    opacity: 1;
 }
