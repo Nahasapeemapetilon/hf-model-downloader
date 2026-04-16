@@ -1962,3 +1962,9 @@ a { color: inherit; text-decoration: none; }
 .filter-toggle-checkbox:checked ~ .filter-toggle-text {
     color: var(--accent-500);
 }
+
+/* Repo delete button — red hover */
+.repo-delete-btn:hover {
+    color: var(--color-error) !important;
+    background: var(--color-error-bg) !important;
+}

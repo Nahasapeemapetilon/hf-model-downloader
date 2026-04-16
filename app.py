@@ -2,8 +2,10 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response
 import threading
@@ -886,6 +888,69 @@ def queue_start_now(index):
 def completed():
     """Returns the list of completed downloads."""
     return jsonify(get_completed_downloads())
+
+@app.route("/api/repos/check-hf", methods=["POST"])
+def check_repos_hf():
+    """Batch-checks which repos exist on HuggingFace (lightweight repo_info only, no file listing)."""
+    data  = request.get_json(silent=True) or {}
+    repos = [r for r in data.get("repos", []) if isinstance(r, str)][:50]
+
+    api = HfApi(token=HF_TOKEN or None)
+
+    def _check(repo_id):
+        try:
+            api.repo_info(repo_id=repo_id, repo_type="model")
+            return repo_id, True
+        except RepositoryNotFoundError:
+            return repo_id, False
+        except Exception:
+            return repo_id, None   # unknown — network error etc.
+
+    result = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for repo_id, exists in executor.map(_check, repos):
+            result[repo_id] = exists
+
+    return jsonify(result)
+
+
+@app.route("/api/repo", methods=["DELETE"])
+def delete_repo():
+    """Deletes a downloaded repo folder and all its contents."""
+    data    = request.get_json(silent=True) or {}
+    repo_id = data.get("repo_id", "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id required"}), 400
+
+    # Block if repo is currently downloading or queued
+    status = download_manager.get_status()
+    if status.get("current_job") and status["current_job"].get("repo_id") == repo_id:
+        return jsonify({"error": "Repo is currently downloading"}), 409
+    if any(q.get("repo_id") == repo_id for q in status.get("queue", [])):
+        return jsonify({"error": "Repo is in the download queue"}), 409
+
+    repo_path = _safe_repo_path(repo_id)
+    if not repo_path:
+        return jsonify({"error": "Invalid repo_id"}), 400
+    if not os.path.exists(repo_path):
+        return jsonify({"error": "Repo not found"}), 404
+
+    try:
+        shutil.rmtree(repo_path)
+        logger.info(f"[DELETE] Repo '{repo_id}' removed")
+
+        # Also remove empty parent org-dir (e.g. 'meta-llama' if now empty)
+        parent = os.path.dirname(repo_path)
+        if parent != os.path.realpath(DOWNLOAD_DIR) and os.path.isdir(parent):
+            if not os.listdir(parent):
+                os.rmdir(parent)
+                logger.info(f"[DELETE] Empty org dir '{os.path.basename(parent)}' removed")
+
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"[DELETE] Failed to remove repo '{repo_id}': {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/search-models", methods=["POST"])
 def search_models():

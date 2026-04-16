@@ -21,6 +21,16 @@ document.addEventListener("DOMContentLoaded", function () {
     let trendingLoaded       = false;
     let filterOrgRepoOnly    = localStorage.getItem('filterOrgRepoOnly') === 'true';
 
+    // Repos confirmed as "not on HuggingFace"
+    const localOnlyRepos  = new Set(JSON.parse(localStorage.getItem('localOnlyRepos')  || '[]'));
+    // Repos confirmed as existing on HuggingFace
+    const confirmedHFRepos = new Set(JSON.parse(localStorage.getItem('confirmedHFRepos') || '[]'));
+
+    function saveLocalOnlyCache() {
+        localStorage.setItem('localOnlyRepos',   JSON.stringify([...localOnlyRepos]));
+        localStorage.setItem('confirmedHFRepos', JSON.stringify([...confirmedHFRepos]));
+    }
+
     // ============================================================
     // THEME TOGGLE
     // ============================================================
@@ -307,6 +317,18 @@ document.addEventListener("DOMContentLoaded", function () {
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                         </svg>
                     </button>
+                    <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
+                            data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
+                            aria-label="Delete repo">
+                        <svg width="13" height="13" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                    </button>
                     <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -396,6 +418,13 @@ document.addEventListener("DOMContentLoaded", function () {
             const statusList = await response.json();
             if (skeleton) skeleton.style.display = 'none';
 
+            // Repo confirmed on HF — update both caches
+            confirmedHFRepos.add(repoId);
+            if (localOnlyRepos.has(repoId)) {
+                localOnlyRepos.delete(repoId);
+                saveLocalOnlyCache();
+            }
+
             // Count stats
             const counts = { synced: 0, not_downloaded: 0, outdated: 0, local_only: 0 };
             statusList.forEach(f => { if (counts[f.status] !== undefined) counts[f.status]++; });
@@ -441,6 +470,10 @@ document.addEventListener("DOMContentLoaded", function () {
         } catch (error) {
             if (skeleton) skeleton.style.display = 'none';
             if (error.notFound) {
+                // Mark as local-only so the HF filter can exclude it
+                localOnlyRepos.add(repoId);
+                saveLocalOnlyCache();
+
                 fileList.innerHTML = `
                     <li class="repo-not-found">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -459,31 +492,74 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function renderCompletedList(completed) {
+        const visible = filterOrgRepoOnly
+            ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
+            : completed;
+
+        completedListUl.innerHTML = '';
+
+        const countBadge = document.getElementById('completed-count-badge');
+        const emptyState = completedListUl.parentElement.querySelector('.empty-state');
+
+        if (countBadge) countBadge.textContent = visible.length;
+
+        if (visible.length === 0) {
+            if (emptyState) emptyState.style.display = 'flex';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+
+        visible.forEach(repo => {
+            completedListUl.appendChild(createRepoCard(repo));
+        });
+    }
+
+    async function checkReposOnHF(repos) {
+        // Only check repos not yet in either cache
+        const unknown = repos.filter(r => !localOnlyRepos.has(r) && !confirmedHFRepos.has(r));
+        if (unknown.length === 0) return false;
+
+        try {
+            const resp = await fetch('/api/repos/check-hf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repos: unknown })
+            });
+            if (!resp.ok) return false;
+            const hfStatus = await resp.json();
+            let changed = false;
+            for (const [repo, exists] of Object.entries(hfStatus)) {
+                if (exists === false) {
+                    if (!localOnlyRepos.has(repo)) { localOnlyRepos.add(repo); changed = true; }
+                    confirmedHFRepos.delete(repo);
+                } else if (exists === true) {
+                    if (localOnlyRepos.has(repo)) { localOnlyRepos.delete(repo); changed = true; }
+                    confirmedHFRepos.add(repo);
+                }
+                // exists === null means network error — leave uncached, retry next time
+            }
+            if (changed) saveLocalOnlyCache();
+            return changed;
+        } catch {
+            return false;
+        }
+    }
+
     async function updateCompletedList() {
         try {
             const response  = await fetch("/completed");
             const completed = await response.json();
 
-            const visible = filterOrgRepoOnly
-                ? completed.filter(r => r.includes('/'))
-                : completed;
+            // Phase 1: render immediately using cached HF knowledge
+            renderCompletedList(completed);
 
-            completedListUl.innerHTML = '';
-
-            const countBadge = document.getElementById('completed-count-badge');
-            const emptyState = completedListUl.parentElement.querySelector('.empty-state');
-
-            if (countBadge) countBadge.textContent = visible.length;
-
-            if (visible.length === 0) {
-                if (emptyState) emptyState.style.display = 'flex';
-                return;
+            // Phase 2: check only repos not yet in either cache
+            const toCheck = completed.filter(r => r.includes('/'));
+            if (toCheck.length > 0) {
+                const changed = await checkReposOnHF(toCheck);
+                if (changed) renderCompletedList(completed);
             }
-            if (emptyState) emptyState.style.display = 'none';
-
-            visible.forEach(repo => {
-                completedListUl.appendChild(createRepoCard(repo));
-            });
         } catch (error) {
             console.error("Error fetching completed list:", error);
         }
@@ -938,6 +1014,31 @@ document.addEventListener("DOMContentLoaded", function () {
         const body        = card.querySelector('.repo-card-body');
         const fileList    = card.querySelector('.local-file-list');
         const downloadBtn = card.querySelector('.download-updates-btn');
+
+        // Delete repo button
+        if (target.closest('.repo-delete-btn')) {
+            if (!confirm(`Delete "${repoId}" and all its files from disk?\nThis cannot be undone.`)) return;
+            try {
+                const response = await fetch('/api/repo', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+
+                card.remove();
+                localOnlyRepos.delete(repoId);
+                confirmedHFRepos.delete(repoId);
+                saveLocalOnlyCache();
+                const countBadge = document.getElementById('completed-count-badge');
+                if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                showToast('success', 'Repo deleted', `"${repoId}" removed from disk.`);
+            } catch (err) {
+                showToast('error', 'Delete failed', err.message || 'Could not delete repo.');
+            }
+            return;
+        }
 
         // Header click → toggle expand
         if (target.closest('.repo-card-header') && !target.closest('.update-btn')) {
