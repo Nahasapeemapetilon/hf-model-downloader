@@ -1959,6 +1959,158 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ------------------------------------------------------------
+   Settings Modal
+   ------------------------------------------------------------ */
+.settings-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(2px);
+}
+
+.settings-panel {
+    position: relative;
+    z-index: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 420px;
+    max-width: calc(100vw - 2rem);
+    overflow: hidden;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-header h2 {
+    font-size: 0.95rem;
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+}
+
+.settings-body {
+    padding: var(--space-4) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.settings-group-title {
+    font-size: 0.7rem;
+    font-weight: var(--font-semibold);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-2);
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer;
+}
+
+.settings-row:last-child {
+    border-bottom: none;
+}
+
+.settings-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.settings-row-label {
+    font-size: 0.82rem;
+    font-weight: var(--font-medium);
+    color: var(--text-primary);
+}
+
+.settings-row-desc {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Settings toggle pill */
+.settings-toggle-wrap {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 36px;
+    height: 20px;
+}
+
+.settings-toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.settings-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-surface-3);
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+    cursor: pointer;
+}
+
+.settings-toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.settings-toggle-input:checked + .settings-toggle-slider {
+    background: var(--accent-500);
+    border-color: var(--accent-500);
+}
+
+.settings-toggle-input:checked + .settings-toggle-slider::after {
+    transform: translateX(16px);
+    background: var(--text-inverse);
+}
+
+/* Delete button visibility — controlled by body classes */
+.repo-delete-btn    { display: none; }
+.file-delete-btn    { display: none; }
+
+body.allow-repo-delete   .is-hf-repo    .repo-delete-btn { display: inline-flex; }
+body.allow-non-hf-delete .is-local-repo .repo-delete-btn { display: inline-flex; }
+body.allow-file-delete                  .file-delete-btn { display: inline-flex; opacity: 0; }
+body.allow-file-delete .status-file-item:hover .file-delete-btn { opacity: 1; }
+body.allow-file-delete .file-delete-btn:hover                   { opacity: 1; }
+
+/* ------------------------------------------------------------
    App Footer
    ------------------------------------------------------------ */
 .app-footer {
@@ -1990,7 +2142,6 @@ a { color: inherit; text-decoration: none; }
 /* File delete button */
 .file-delete-btn {
     flex-shrink: 0;
-    display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 20px;
@@ -2001,16 +2152,10 @@ a { color: inherit; text-decoration: none; }
     border-radius: var(--radius-sm);
     color: var(--text-muted);
     cursor: pointer;
-    opacity: 0;
     transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
-}
-
-.status-file-item:hover .file-delete-btn {
-    opacity: 1;
 }
 
 .file-delete-btn:hover {
     color: var(--color-error);
     background: var(--color-error-bg);
-    opacity: 1;
 }

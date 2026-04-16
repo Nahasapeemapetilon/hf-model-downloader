@@ -26,6 +26,20 @@ document.addEventListener("DOMContentLoaded", function () {
     // Repos confirmed as existing on HuggingFace
     const confirmedHFRepos = new Set(JSON.parse(localStorage.getItem('confirmedHFRepos') || '[]'));
 
+    // Settings
+    const settings = {
+        allowFileDelete:   localStorage.getItem('setting-file-delete')   === 'true',
+        allowRepoDelete:   localStorage.getItem('setting-repo-delete')   === 'true',
+        allowNonHFDelete:  localStorage.getItem('setting-non-hf-delete') === 'true',
+    };
+
+    function applySettings() {
+        document.body.classList.toggle('allow-file-delete',  settings.allowFileDelete);
+        document.body.classList.toggle('allow-repo-delete',  settings.allowRepoDelete);
+        document.body.classList.toggle('allow-non-hf-delete', settings.allowNonHFDelete);
+    }
+    applySettings();
+
     function saveLocalOnlyCache() {
         localStorage.setItem('localOnlyRepos',   JSON.stringify([...localOnlyRepos]));
         localStorage.setItem('confirmedHFRepos', JSON.stringify([...confirmedHFRepos]));
@@ -290,9 +304,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // ============================================================
     // COMPLETED DOWNLOADS
     // ============================================================
+    function repoTypeClass(repo) {
+        if (localOnlyRepos.has(repo) || !repo.includes('/')) return 'is-local-repo';
+        return 'is-hf-repo';
+    }
+
     function createRepoCard(repo) {
         const li = document.createElement('li');
-        li.className = 'repo-card completed-item';
+        li.className = `repo-card completed-item ${repoTypeClass(repo)}`;
         li.dataset.repo = repo;
 
         li.innerHTML = `
@@ -1314,6 +1333,47 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // ============================================================
+    // SETTINGS MODAL
+    // ============================================================
+    const settingsModal    = document.getElementById('settings-modal');
+    const settingsBtn      = document.getElementById('settings-btn');
+    const settingsCloseBtn = document.getElementById('settings-close-btn');
+    const settingsBackdrop = document.getElementById('settings-backdrop');
+
+    function openSettings() {
+        settingsModal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    function closeSettings() {
+        settingsModal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    if (settingsBtn)      settingsBtn.addEventListener('click', openSettings);
+    if (settingsCloseBtn) settingsCloseBtn.addEventListener('click', closeSettings);
+    if (settingsBackdrop) settingsBackdrop.addEventListener('click', closeSettings);
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && settingsModal.style.display !== 'none') closeSettings();
+    });
+
+    // Init toggles from saved state
+    [
+        { id: 'setting-file-delete',  key: 'allowFileDelete'  },
+        { id: 'setting-repo-delete',  key: 'allowRepoDelete'  },
+        { id: 'setting-non-hf-delete', key: 'allowNonHFDelete' },
+    ].forEach(({ id, key }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.checked = settings[key];
+        el.addEventListener('change', () => {
+            settings[key] = el.checked;
+            localStorage.setItem(id, el.checked);
+            applySettings();
+        });
+    });
+
+    // ============================================================
     // SHOW HIDDEN TOGGLE
     // ============================================================
     let showHidden = false;
@@ -1337,7 +1397,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function createHiddenRepoCard(repo) {
         const li = document.createElement('li');
-        li.className = 'repo-card completed-item is-hidden-repo';
+        li.className = `repo-card completed-item is-hidden-repo ${repoTypeClass(repo)}`;
         li.dataset.repo = repo;
         li.innerHTML = `
             <div class="repo-card-header">
