@@ -440,11 +440,11 @@
                     <h2>Downloaded Repos</h2>
                 </div>
                 <div class="flex items-center gap-3">
-                    <label class="filter-toggle-label" title="Show only HuggingFace org/repo folders">
-                        <input type="checkbox" id="filter-org-repo" class="filter-toggle-checkbox">
-                        <span class="filter-toggle-slider"></span>
-                        <span class="filter-toggle-text">HF only</span>
-                    </label>
+                    <div class="repo-filter-group" role="group" aria-label="Filter repositories">
+                        <button class="repo-filter-btn is-active" data-filter="all" type="button">All</button>
+                        <button class="repo-filter-btn" data-filter="hf" type="button">HF only</button>
+                        <button class="repo-filter-btn" data-filter="local" type="button">Local only</button>
+                    </div>
                     <span id="completed-count-badge" class="badge badge-success">{{ completed_downloads|length }}</span>
                 </div>
             </div>

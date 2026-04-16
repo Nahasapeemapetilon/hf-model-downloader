@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let progressTimeout      = null;
     let currentRepoId        = '';
     let trendingLoaded       = false;
-    let filterOrgRepoOnly    = localStorage.getItem('filterOrgRepoOnly') === 'true';
+    let repoFilter           = localStorage.getItem('repoFilter') || 'all'; // 'all' | 'hf' | 'local'
 
     // Repos confirmed as "not on HuggingFace"
     const localOnlyRepos  = new Set(JSON.parse(localStorage.getItem('localOnlyRepos')  || '[]'));
@@ -493,9 +493,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function renderCompletedList(completed) {
-        const visible = filterOrgRepoOnly
+        const visible = repoFilter === 'hf'
             ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
-            : completed;
+            : repoFilter === 'local'
+                ? completed.filter(r => !r.includes('/') || localOnlyRepos.has(r))
+                : completed;
 
         completedListUl.innerHTML = '';
 
@@ -1195,17 +1197,20 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // ============================================================
-    // FILTER TOGGLE — HF only (org/repo)
+    // FILTER BUTTON GROUP — All / HF only / Local only
     // ============================================================
-    const filterOrgRepoCheckbox = document.getElementById('filter-org-repo');
-    if (filterOrgRepoCheckbox) {
-        filterOrgRepoCheckbox.checked = filterOrgRepoOnly;
-        filterOrgRepoCheckbox.addEventListener('change', () => {
-            filterOrgRepoOnly = filterOrgRepoCheckbox.checked;
-            localStorage.setItem('filterOrgRepoOnly', filterOrgRepoOnly);
+    const repoFilterBtns = document.querySelectorAll('.repo-filter-btn');
+    repoFilterBtns.forEach(btn => {
+        if (btn.dataset.filter === repoFilter) btn.classList.add('is-active');
+        else btn.classList.remove('is-active');
+
+        btn.addEventListener('click', () => {
+            repoFilter = btn.dataset.filter;
+            localStorage.setItem('repoFilter', repoFilter);
+            repoFilterBtns.forEach(b => b.classList.toggle('is-active', b === btn));
             updateCompletedList();
         });
-    }
+    });
 
     // ============================================================
     // INITIAL LOAD
