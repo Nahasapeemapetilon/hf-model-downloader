@@ -177,8 +177,11 @@
   "theme.to_light": "Zum hellen Design wechseln",
   "theme.to_dark":  "Zum dunklen Design wechseln",
 
-  "lang.en": "EN",
-  "lang.de": "DE",
+  "lang.en": "🇬🇧 EN",
+  "lang.de": "🇩🇪 DE",
+  "lang.fr": "🇫🇷 FR",
+  "lang.es": "🇪🇸 ES",
+  "lang.zh": "🇨🇳 中文",
 
   "bmc.link":  "☕ Kauf mir einen Kaffee — falls HF Downloader dir Zeit gespart hat",
   "bmc.short": "☕ Kauf mir einen Kaffee",

@@ -72,20 +72,46 @@ export async function switchLang(lang) {
     if (label) label.textContent = t(`lang.${lang}`);
 }
 
-/** Wire up the language toggle button in the topbar. */
+/** Wire up the language dropdown in the topbar. */
 export function initLangToggle() {
-    const btn   = document.getElementById('lang-toggle');
-    const label = document.getElementById('lang-label');
-    if (!btn) return;
+    const btn    = document.getElementById('lang-toggle');
+    const label  = document.getElementById('lang-label');
+    const menu   = document.getElementById('lang-menu');
+    if (!btn || !menu) return;
 
-    // Show current lang
     if (label) label.textContent = t(`lang.${_currentLang}`);
 
-    btn.addEventListener('click', () => {
-        const next = _currentLang === 'en' ? 'de' : 'en';
-        switchLang(next).then(() => {
-            // Re-render dynamic content that was already inserted into DOM
-            document.dispatchEvent(new CustomEvent('i18n:changed', { detail: { lang: next } }));
+    function openMenu() {
+        menu.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+        menu.querySelectorAll('.lang-option').forEach(opt => {
+            opt.classList.toggle('is-active', opt.dataset.lang === _currentLang);
         });
+    }
+
+    function closeMenu() {
+        menu.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+    }
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.contains('is-open') ? closeMenu() : openMenu();
+    });
+
+    menu.addEventListener('click', (e) => {
+        const opt = e.target.closest('.lang-option');
+        if (!opt) return;
+        const lang = opt.dataset.lang;
+        closeMenu();
+        if (lang === _currentLang) return;
+        switchLang(lang).then(() => {
+            document.dispatchEvent(new CustomEvent('i18n:changed', { detail: { lang } }));
+        });
+    });
+
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
     });
 }
