@@ -183,6 +183,21 @@
   "lang.es": "🇪🇸 ES",
   "lang.zh": "🇨🇳 中文",
 
+  "settings.storage":             "Storage",
+  "disk.free":                    "free",
+  "disk.warning_threshold":       "Low disk space warning",
+  "disk.warning_threshold_desc":  "Show warning when free space drops below this value",
+  "disk.warning":                 "Low disk space",
+  "disk.critical":                "Critical: very low disk space",
+  "disk.breakdown_title":         "Storage Breakdown",
+  "disk.refresh":                 "Refresh",
+  "disk.scanning":                "Scanning folders…",
+  "disk.error":                   "Could not load storage data.",
+  "disk.used":                    "used",
+  "disk.other":                   "Other (OS / system)",
+  "disk.col_folder":              "Folder",
+  "disk.col_size":                "Size",
+
   "bmc.link":  "☕ Buy me a coffee — if HF Downloader saved you some time",
   "bmc.short": "☕ Buy me a coffee",
 

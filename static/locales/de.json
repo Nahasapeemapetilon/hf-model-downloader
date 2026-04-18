@@ -183,6 +183,21 @@
   "lang.es": "🇪🇸 ES",
   "lang.zh": "🇨🇳 中文",
 
+  "settings.storage":             "Speicher",
+  "disk.free":                    "frei",
+  "disk.warning_threshold":       "Warnung bei wenig Speicher",
+  "disk.warning_threshold_desc":  "Warnung anzeigen wenn der freie Speicher unter diesen Wert fällt",
+  "disk.warning":                 "Wenig Speicherplatz",
+  "disk.critical":                "Kritisch: kaum noch Speicherplatz",
+  "disk.breakdown_title":         "Speicherverteilung",
+  "disk.refresh":                 "Aktualisieren",
+  "disk.scanning":                "Ordner werden gescannt…",
+  "disk.error":                   "Speicherdaten konnten nicht geladen werden.",
+  "disk.used":                    "belegt",
+  "disk.other":                   "Sonstiges (OS / System)",
+  "disk.col_folder":              "Ordner",
+  "disk.col_size":                "Größe",
+
   "bmc.link":  "☕ Kauf mir einen Kaffee — falls HF Downloader dir Zeit gespart hat",
   "bmc.short": "☕ Kauf mir einen Kaffee",
 

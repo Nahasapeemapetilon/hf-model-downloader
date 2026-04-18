@@ -184,6 +184,21 @@
   "lang.es": "🇪🇸 ES",
   "lang.zh": "🇨🇳 中文",
 
+  "settings.storage":             "Stockage",
+  "disk.free":                    "libre",
+  "disk.warning_threshold":       "Avertissement espace disque",
+  "disk.warning_threshold_desc":  "Afficher un avertissement quand l'espace libre passe sous cette valeur",
+  "disk.warning":                 "Espace disque faible",
+  "disk.critical":                "Critique : espace disque très faible",
+  "disk.breakdown_title":         "Répartition du stockage",
+  "disk.refresh":                 "Actualiser",
+  "disk.scanning":                "Analyse des dossiers…",
+  "disk.error":                   "Impossible de charger les données de stockage.",
+  "disk.used":                    "utilisé",
+  "disk.other":                   "Autre (OS / système)",
+  "disk.col_folder":              "Dossier",
+  "disk.col_size":                "Taille",
+
   "bmc.link":  "☕ Offrez-moi un café — si HF Downloader vous a fait gagner du temps",
   "bmc.short": "☕ Offrez-moi un café"
 }

@@ -184,6 +184,21 @@
   "lang.es": "🇪🇸 ES",
   "lang.zh": "🇨🇳 中文",
 
+  "settings.storage":             "存储",
+  "disk.free":                    "可用",
+  "disk.warning_threshold":       "磁盘空间不足警告",
+  "disk.warning_threshold_desc":  "当可用空间低于此值时显示警告",
+  "disk.warning":                 "磁盘空间不足",
+  "disk.critical":                "严重：磁盘空间极低",
+  "disk.breakdown_title":         "存储分布",
+  "disk.refresh":                 "刷新",
+  "disk.scanning":                "正在扫描文件夹…",
+  "disk.error":                   "无法加载存储数据。",
+  "disk.used":                    "已使用",
+  "disk.other":                   "其他（系统）",
+  "disk.col_folder":              "文件夹",
+  "disk.col_size":                "大小",
+
   "bmc.link":  "☕ 请我喝杯咖啡 — 如果 HF Downloader 为您节省了时间",
   "bmc.short": "☕ 请我喝杯咖啡"
 }

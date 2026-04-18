@@ -2382,6 +2382,154 @@ body.allow-file-delete .file-delete-btn:hover                   { opacity: 1; }
     opacity: 1;
 }
 
+.app-footer-disk {
+    opacity: 0.7;
+    transition: color 0.2s;
+}
+.app-footer-disk.disk-warning {
+    color: var(--color-warning, #f59e0b);
+    opacity: 1;
+    font-weight: 600;
+}
+.app-footer-disk.disk-critical {
+    color: var(--color-danger, #ef4444);
+    opacity: 1;
+    font-weight: 600;
+}
+
+/* Disk space threshold input */
+.disk-threshold-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.disk-threshold-input {
+    width: 5rem;
+    text-align: right;
+}
+.disk-threshold-unit {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------
+   Disk Breakdown Modal
+   ------------------------------------------------------------ */
+.disk-breakdown-panel {
+    width: min(520px, 94vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.disk-breakdown-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.disk-breakdown-body {
+    overflow-y: auto;
+    padding: var(--space-4);
+    flex: 1;
+}
+.disk-breakdown-summary {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-3);
+}
+.disk-breakdown-sort-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+    margin-bottom: var(--space-2);
+}
+.disk-breakdown-col-name {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.disk-breakdown-sort-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.disk-breakdown-sort-btn:hover {
+    color: var(--text-primary);
+}
+.disk-breakdown-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.disk-breakdown-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.disk-breakdown-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+}
+.disk-breakdown-name {
+    font-family: var(--font-mono, monospace);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.disk-breakdown-size {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.disk-breakdown-bar-wrap {
+    height: 6px;
+    background: var(--bg-surface-2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.disk-breakdown-bar {
+    height: 100%;
+    background: var(--color-primary, #3b82f6);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    min-width: 2px;
+}
+.disk-breakdown-other .disk-breakdown-bar {
+    background: var(--text-muted);
+    opacity: 0.4;
+}
+.disk-breakdown-spinner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    padding: var(--space-4) 0;
+}
+.disk-breakdown-error {
+    color: var(--color-danger, #ef4444);
+    font-size: var(--text-sm);
+}
 /* Settings modal footer */
 .settings-footer {
     padding: var(--space-3) var(--space-5);

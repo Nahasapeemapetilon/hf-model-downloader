@@ -617,6 +617,21 @@
                                class="bandwidth-slider">
                     </div>
                 </div>
+
+                <p class="settings-group-title" style="margin-top: var(--space-4);" data-i18n="settings.storage">Storage</p>
+
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="disk.warning_threshold">Low disk space warning</span>
+                        <span class="settings-row-desc"  data-i18n="disk.warning_threshold_desc">Show warning when free space drops below this value</span>
+                    </div>
+                    <div class="disk-threshold-wrap">
+                        <input type="number" id="setting-disk-threshold"
+                               min="1" max="500" step="1" value="5"
+                               class="input input-sm disk-threshold-input">
+                        <span class="disk-threshold-unit">GB</span>
+                    </div>
+                </div>
             </div>
 
             <!-- ===== Scheduler Tab ===== -->
@@ -745,12 +760,31 @@
     </div>
 </div>
 
+<!-- Disk Breakdown Modal -->
+<div id="disk-breakdown-modal" class="settings-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="disk-breakdown-title">
+    <div id="disk-breakdown-backdrop" class="settings-backdrop"></div>
+    <div class="settings-panel disk-breakdown-panel">
+        <div class="settings-header">
+            <h2 class="settings-title" id="disk-breakdown-title" data-i18n="disk.breakdown_title">Storage Breakdown</h2>
+            <div class="disk-breakdown-header-actions">
+                <button class="btn btn-ghost btn-sm" id="disk-breakdown-refresh" type="button" data-i18n="disk.refresh">Refresh</button>
+                <button class="btn btn-ghost btn-icon" id="disk-breakdown-close" type="button" aria-label="Close">✕</button>
+            </div>
+        </div>
+        <div id="disk-breakdown-body" class="disk-breakdown-body"></div>
+    </div>
+</div>
+
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
 <footer class="app-footer">
     <span>HF Downloader</span>
     <span class="app-footer-sep">·</span>
     <span class="app-footer-version">{{ app_version }}</span>
+    <span class="app-footer-sep">·</span>
+    <span id="disk-space-display" class="app-footer-disk">
+        💾 <span id="disk-space-text">—</span>
+    </span>
     <span class="app-footer-sep">·</span>
     <a href="https://buymeacoffee.com/nahasapeemapetilon" target="_blank" rel="noopener noreferrer"
        class="app-footer-bmc" data-i18n="bmc.short">

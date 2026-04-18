@@ -19,6 +19,7 @@ import {
     setRepoFilter, getRepoFilter,
 } from './modules/repos.js';
 import { initExplore, openExploreWithQuery } from './modules/explore.js';
+import { initDiskSpace, fetchDiskSpace }     from './modules/diskspace.js';
 
 // ============================================================
 // i18n — must load before anything renders
@@ -63,6 +64,7 @@ function stopPollingProgress() {
     updateStatusPill('idle');
     document.title = 'HF Downloader';
     updateCompletedList();
+    fetchDiskSpace();
 }
 
 async function updateDownloadProgress() {
@@ -571,6 +573,7 @@ initScheduler();
 initSyncSettings(startPollingProgress);
 initSettings();
 initExplore();
+initDiskSpace();
 
 updateCompletedList();
 startPollingProgress();
