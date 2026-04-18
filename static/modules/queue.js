@@ -1,4 +1,5 @@
 import { escapeHtml } from './utils.js';
+import { t } from './i18n.js';
 
 export function renderQueue(queue, queueListUl) {
     const container  = document.getElementById('download-queue-container');
@@ -24,13 +25,14 @@ export function renderQueue(queue, queueListUl) {
                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                </svg>`
             : '';
+        const fileWord = job.total_files === 1 ? t('unit.file') : t('unit.files');
         li.innerHTML = `
             <div class="queue-position">${index + 1}</div>
             <div class="queue-item-info">
                 <div class="queue-repo-name truncate" title="${escapeHtml(job.repo_id)}">
                     ${clockIcon}${escapeHtml(job.repo_id)}
                 </div>
-                <div class="queue-file-count">${job.total_files} file${job.total_files !== 1 ? 's' : ''}</div>
+                <div class="queue-file-count">${job.total_files} ${fileWord}</div>
             </div>
             <span class="queue-status-badge ${job.scheduled ? 'badge-scheduled' : ''}">${escapeHtml(job.status)}</span>
             <div class="queue-item-controls">

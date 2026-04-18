@@ -1,3 +1,4 @@
+import { initI18n, t, applyTranslations, initLangToggle } from './modules/i18n.js';
 import { fetchJson }         from './modules/api.js';
 import { settings, localOnlyRepos, confirmedHFRepos, saveLocalOnlyCache, applySettings }
                              from './modules/state.js';
@@ -11,13 +12,19 @@ import {
 } from './modules/files.js';
 import { updateSchedulerUI, initScheduler } from './modules/scheduler.js';
 import { updateSyncStatusDisplay, initSyncSettings } from './modules/sync.js';
-import { initSettings }                      from './modules/settings.js';
+import { initSettings }      from './modules/settings.js';
 import {
     initRepos, refreshRepoStatus,
     updateCompletedList, loadHiddenRepos,
     setRepoFilter, getRepoFilter,
 } from './modules/repos.js';
 import { initExplore, openExploreWithQuery } from './modules/explore.js';
+
+// ============================================================
+// i18n — must load before anything renders
+// ============================================================
+const savedLang = localStorage.getItem('lang') || 'en';
+await initI18n(savedLang);
 
 // ============================================================
 // DOM REFERENCES
@@ -67,7 +74,6 @@ async function updateDownloadProgress() {
         renderQueue(status.queue, queueListUl);
         if (status.scheduler) updateSchedulerUI(status.scheduler);
 
-        // Sync indicator in topbar
         const syncInd  = document.getElementById('sync-indicator');
         const syncText = document.getElementById('sync-indicator-text');
         if (status.sync && status.sync.status === 'running') {
@@ -88,7 +94,7 @@ async function updateDownloadProgress() {
             document.getElementById('current-repo').textContent = status.current_repo_id || '';
             document.getElementById('current-file').textContent = status.current_file || '';
             document.getElementById('file-counter').textContent =
-                `File ${status.file_index || 0} of ${status.total_files || 0}`;
+                t('download.file_counter', { index: status.file_index || 0, total: status.total_files || 0 });
 
             const pct = Math.min(100, Math.max(0, Math.round(status.total_progress || 0)));
             document.getElementById('progress-bar-fill').style.width = `${pct}%`;
@@ -137,9 +143,7 @@ async function updateDownloadProgress() {
             container.style.display = 'none';
         }
 
-        if (status.error) {
-            showToast('error', 'Download Failed', status.error);
-        }
+        if (status.error) showToast('error', 'Download Failed', status.error);
 
         const syncRunning = status.sync && status.sync.status === 'running';
         if (status.status === 'idle' && (!status.queue || status.queue.length === 0) && !syncRunning) {
@@ -147,10 +151,7 @@ async function updateDownloadProgress() {
             return;
         }
 
-        const nextInterval = (status.status === 'downloading' || status.status === 'paused')
-            ? 1000
-            : 5000;
-
+        const nextInterval = (status.status === 'downloading' || status.status === 'paused') ? 1000 : 5000;
         progressTimeout = setTimeout(updateDownloadProgress, nextInterval);
 
     } catch (error) {
@@ -205,84 +206,74 @@ function initCompletedEvents() {
         const card   = target.closest('.completed-item');
         if (!card) return;
 
-        const repoId      = card.dataset.repo;
-        const fileList    = card.querySelector('.local-file-list');
+        const repoId   = card.dataset.repo;
+        const fileList = card.querySelector('.local-file-list');
 
-        // Hide repo
         if (target.closest('.repo-hide-btn')) {
             try {
                 const response = await fetchJson('/api/repo/hide', {
-                    method: 'POST',
-                    body:   JSON.stringify({ repo_id: repoId }),
+                    method: 'POST', body: JSON.stringify({ repo_id: repoId }),
                 });
                 if (!response.ok) throw new Error((await response.json()).error);
                 card.remove();
-                const countBadge = document.getElementById('completed-count-badge');
-                if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                const cb = document.getElementById('completed-count-badge');
+                if (cb) cb.textContent = Math.max(0, parseInt(cb.textContent || '0') - 1);
                 if (showHidden) await loadHiddenRepos();
-                showToast('info', 'Repo hidden', `"${repoId}" is hidden. Use the eye button to show hidden repos.`);
+                showToast('info', t('repos.hide_success'), t('repos.hide_success_msg', { repo: repoId }));
             } catch (err) {
-                showToast('error', 'Hide failed', err.message || 'Could not hide repo.');
+                showToast('error', t('repos.hide_error'), err.message || t('repos.could_not_hide'));
             }
             return;
         }
 
-        // Unhide repo
         if (target.closest('.repo-unhide-btn')) {
             try {
                 const response = await fetchJson('/api/repo/unhide', {
-                    method: 'POST',
-                    body:   JSON.stringify({ repo_id: repoId }),
+                    method: 'POST', body: JSON.stringify({ repo_id: repoId }),
                 });
                 if (!response.ok) throw new Error((await response.json()).error);
                 card.remove();
                 await updateCompletedList();
-                showToast('success', 'Repo restored', `"${repoId}" is visible again.`);
+                showToast('success', t('repos.unhide_success'), t('repos.unhide_success_msg', { repo: repoId }));
             } catch (err) {
-                showToast('error', 'Unhide failed', err.message || 'Could not unhide repo.');
+                showToast('error', t('repos.unhide_error'), err.message || t('repos.could_not_unhide'));
             }
             return;
         }
 
-        // Delete repo
         if (target.closest('.repo-delete-btn')) {
-            if (!confirm(`Delete "${repoId}" and all its files from disk?\nThis cannot be undone.`)) return;
+            if (!confirm(t('repos.confirm_delete', { repo: repoId }))) return;
             try {
                 const response = await fetchJson('/api/repo', {
-                    method: 'DELETE',
-                    body:   JSON.stringify({ repo_id: repoId }),
+                    method: 'DELETE', body: JSON.stringify({ repo_id: repoId }),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
-
                 card.remove();
                 localOnlyRepos.delete(repoId);
                 confirmedHFRepos.delete(repoId);
                 saveLocalOnlyCache();
                 await fetchJson('/api/repo/unhide', {
-                    method: 'POST',
-                    body:   JSON.stringify({ repo_id: repoId }),
+                    method: 'POST', body: JSON.stringify({ repo_id: repoId }),
                 }).catch(() => {});
                 if (!card.classList.contains('is-hidden-repo')) {
-                    const countBadge = document.getElementById('completed-count-badge');
-                    if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
+                    const cb = document.getElementById('completed-count-badge');
+                    if (cb) cb.textContent = Math.max(0, parseInt(cb.textContent || '0') - 1);
                 }
-                showToast('success', 'Repo deleted', `"${repoId}" removed from disk.`);
+                showToast('success', t('repos.delete_success'), t('repos.delete_success_msg', { repo: repoId }));
             } catch (err) {
-                showToast('error', 'Delete failed', err.message || 'Could not delete repo.');
+                showToast('error', t('repos.delete_error'), err.message || t('repos.could_not_delete'));
             }
             return;
         }
 
-        // Delete single file
         if (target.closest('.file-delete-btn')) {
             const btn      = target.closest('.file-delete-btn');
             const filename = btn.dataset.file;
-            if (!confirm(`Delete "${filename}"?\nIt will need to be re-downloaded from HuggingFace.`)) return;
+            if (!confirm(t('repos.confirm_delete_file', { file: filename }))) return;
             try {
                 const response = await fetchJson('/api/file', {
-                    method: 'DELETE',
-                    body:   JSON.stringify({ repo_id: repoId, filename }),
+                    method: 'DELETE', body: JSON.stringify({ repo_id: repoId, filename }),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
@@ -292,21 +283,20 @@ function initCompletedEvents() {
                     localOnlyRepos.delete(repoId);
                     confirmedHFRepos.delete(repoId);
                     saveLocalOnlyCache();
-                    const countBadge = document.getElementById('completed-count-badge');
-                    if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent || '0') - 1);
-                    showToast('success', 'File deleted', `Last file removed — repo "${repoId}" cleaned up.`);
+                    const cb = document.getElementById('completed-count-badge');
+                    if (cb) cb.textContent = Math.max(0, parseInt(cb.textContent || '0') - 1);
+                    showToast('success', t('repos.file_delete_success'), t('repos.file_delete_last_msg', { repo: repoId }));
                 } else {
                     btn.closest('li').remove();
                     await refreshRepoStatus(card);
-                    showToast('success', 'File deleted', `"${filename}" removed.`);
+                    showToast('success', t('repos.file_delete_success'), t('repos.file_delete_msg', { file: filename }));
                 }
             } catch (err) {
-                showToast('error', 'Delete failed', err.message || 'Could not delete file.');
+                showToast('error', t('repos.delete_error'), err.message || t('repos.could_not_file_delete'));
             }
             return;
         }
 
-        // Header click → toggle expand
         if (target.closest('.repo-card-header') && !target.closest('.update-btn')) {
             const isExpanded = card.classList.toggle('is-expanded');
             if (isExpanded && !card.dataset.loaded) {
@@ -316,14 +306,12 @@ function initCompletedEvents() {
             return;
         }
 
-        // Refresh status button
         if (target.closest('.update-btn')) {
             card.classList.add('is-expanded');
             await refreshRepoStatus(card);
             return;
         }
 
-        // Download Now / Schedule buttons
         const updateBtn = target.closest('.download-updates-btn') || target.closest('.schedule-updates-btn');
         if (updateBtn) {
             const scheduled      = updateBtn.dataset.scheduled === 'true';
@@ -332,10 +320,9 @@ function initCompletedEvents() {
             ).map(cb => cb.value);
 
             if (filesToDownload.length === 0) {
-                showToast('warning', 'No files selected', 'Select at least one file to download.');
+                showToast('warning', t('repos.no_files_sel'), t('repos.no_files_sel_msg'));
                 return;
             }
-
             try {
                 const response = await fetchJson('/download', {
                     method: 'POST',
@@ -344,19 +331,18 @@ function initCompletedEvents() {
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
 
-                const label  = scheduled ? 'Added to scheduler' : 'Added to queue';
+                const label  = scheduled ? t('repos.added_to_scheduler') : t('repos.added_to_queue');
                 const detail = scheduled
-                    ? `${filesToDownload.length} file(s) will download during the scheduled window.`
-                    : `${filesToDownload.length} file(s) queued for download.`;
+                    ? t('repos.scheduled_msg', { count: filesToDownload.length })
+                    : t('repos.queued_msg',    { count: filesToDownload.length });
                 showToast('success', label, detail);
                 startPollingProgress();
             } catch (error) {
-                showToast('error', 'Download Error', error.message || 'An unknown error occurred.');
+                showToast('error', t('repos.download_error'), error.message || t('repos.unknown_error'));
             }
             return;
         }
 
-        // Select / Deselect all in local file list
         if (target.classList.contains('select-all-local-btn')) {
             card.querySelectorAll('.download-update-cb').forEach(cb => cb.checked = true);
         }
@@ -377,24 +363,18 @@ function initQueueEvents() {
         if (index === undefined) return;
 
         let url;
-        if (target.classList.contains('move-up-btn')) {
-            url = `/api/queue/move/${index}/up`;
-        } else if (target.classList.contains('move-down-btn')) {
-            url = `/api/queue/move/${index}/down`;
-        } else if (target.classList.contains('remove-btn')) {
-            url = `/api/queue/remove/${index}`;
-        } else if (target.classList.contains('queue-start-now-btn')) {
-            url = `/api/queue/start-now/${index}`;
-        } else {
-            return;
-        }
+        if (target.classList.contains('move-up-btn'))          url = `/api/queue/move/${index}/up`;
+        else if (target.classList.contains('move-down-btn'))   url = `/api/queue/move/${index}/down`;
+        else if (target.classList.contains('remove-btn'))      url = `/api/queue/remove/${index}`;
+        else if (target.classList.contains('queue-start-now-btn')) url = `/api/queue/start-now/${index}`;
+        else return;
 
         try {
             const response = await fetchJson(url, { method: 'POST' });
             if (!response.ok) throw new Error((await response.json()).error);
             updateDownloadProgress();
         } catch (error) {
-            showToast('error', 'Queue Error', error.message);
+            showToast('error', t('queue.error'), error.message);
         }
     });
 }
@@ -417,9 +397,9 @@ function initDownloadControls() {
                 const response = await fetchJson('/api/current/to-scheduler', { method: 'POST' });
                 const result   = await response.json();
                 if (!response.ok) throw new Error(result.error);
-                showToast('info', 'Moved to Scheduler', result.message);
+                showToast('info', t('download.moved_to_scheduler'), result.message);
             } catch (err) {
-                showToast('error', 'Error', err.message || 'Could not move to scheduler.');
+                showToast('error', t('download.error'), err.message || t('download.move_error'));
             }
         });
     }
@@ -434,7 +414,6 @@ function initRepoFinder() {
         currentRepoId = repoIdInput.value.trim();
         if (!currentRepoId) { repoIdInput.focus(); return; }
 
-        // No slash → open Explore with pre-filled search
         if (!currentRepoId.includes('/')) {
             openExploreWithQuery(currentRepoId);
             repoIdInput.value = '';
@@ -450,7 +429,7 @@ function initRepoFinder() {
 
         const HF_REPO_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
         if (!HF_REPO_RE.test(currentRepoId)) {
-            errorText.textContent = 'Invalid repo ID. Expected format: owner/repo-name';
+            errorText.textContent = t('finder.invalid_repo');
             errorEl.style.display = 'flex';
             repoIdInput.focus();
             return;
@@ -458,7 +437,7 @@ function initRepoFinder() {
 
         const infoBar = document.getElementById('repo-info-bar');
         btn.disabled             = true;
-        label.textContent        = 'Loading…';
+        label.textContent        = t('finder.loading');
         spinner.style.display    = 'inline-block';
         errorEl.style.display    = 'none';
         infoBar.style.display    = 'none';
@@ -483,7 +462,7 @@ function initRepoFinder() {
             errorEl.style.display = 'flex';
         } finally {
             btn.disabled          = false;
-            label.textContent     = 'List Files';
+            label.textContent     = t('finder.list_files');
             spinner.style.display = 'none';
         }
     });
@@ -507,7 +486,7 @@ function initRepoFinder() {
 async function submitDownload(scheduled) {
     const selectedFiles = getSelectedFiles();
     if (selectedFiles.length === 0) {
-        showToast('warning', 'No files selected', 'Please select at least one file to download.');
+        showToast('warning', t('download.no_files_sel'), t('download.no_files_sel_msg'));
         return;
     }
     try {
@@ -523,14 +502,14 @@ async function submitDownload(scheduled) {
         repoIdInput.value = '';
         currentRepoId = '';
 
-        const lbl    = scheduled ? 'Added to scheduler' : 'Added to queue';
+        const lbl    = scheduled ? t('repos.added_to_scheduler') : t('repos.added_to_queue');
         const detail = scheduled
-            ? `${selectedFiles.length} file(s) will download during the scheduled window.`
-            : `${selectedFiles.length} file(s) queued for download.`;
+            ? t('repos.scheduled_msg', { count: selectedFiles.length })
+            : t('repos.queued_msg',    { count: selectedFiles.length });
         showToast('success', lbl, detail);
         startPollingProgress();
     } catch (error) {
-        showToast('error', 'Download Error', error.message || 'An unknown error occurred.');
+        showToast('error', t('download.error_label'), error.message || t('repos.unknown_error'));
     }
 }
 
@@ -559,10 +538,25 @@ document.addEventListener('explore:select', (e) => {
 });
 
 // ============================================================
+// RE-RENDER DYNAMIC CONTENT ON LANGUAGE SWITCH
+// ============================================================
+document.addEventListener('i18n:changed', () => {
+    updateCompletedList();
+    // Re-apply any visible dynamic text that can't use data-i18n
+    const pill = document.getElementById('global-status-pill');
+    const pillText = pill?.querySelector('.status-text')?.textContent;
+    if (pillText) updateStatusPill(
+        pillText === 'Idle' || pillText === 'Bereit' ? 'idle' :
+        pillText === 'Downloading' || pillText === 'Lädt' ? 'downloading' : 'idle'
+    );
+});
+
+// ============================================================
 // INIT
 // ============================================================
 initTheme();
 applySettings();
+initLangToggle();
 initFiles(fileListDiv);
 initFileFilter(fileFilterInput);
 initRepos(completedListUl, startPollingProgress);

@@ -1,14 +1,15 @@
 import { fetchJson } from './api.js';
 import { escapeHtml, formatBytes } from './utils.js';
 import { showToast } from './toast.js';
+import { t } from './i18n.js';
 import {
     localOnlyRepos, confirmedHFRepos, syncState,
     cachedSyncConfig, setCachedSyncConfig, saveLocalOnlyCache,
 } from './state.js';
 
-let _repoFilter       = localStorage.getItem('repoFilter') || 'all';
-let _completedListUl  = null;
-let _startPolling     = null;
+let _repoFilter      = localStorage.getItem('repoFilter') || 'all';
+let _completedListUl = null;
+let _startPolling    = null;
 
 export function getRepoFilter() { return _repoFilter; }
 export function setRepoFilter(f) { _repoFilter = f; }
@@ -91,10 +92,10 @@ export function createRepoCard(repo) {
         </div>
         <div class="repo-card-body">
             <div class="sync-stats-bar" style="display:none;">
-                <span class="sync-stat synced"><span class="sync-stat-count">0</span> synced</span>
-                <span class="sync-stat new"><span class="sync-stat-count">0</span> new</span>
-                <span class="sync-stat outdated"><span class="sync-stat-count">0</span> outdated</span>
-                <span class="sync-stat local"><span class="sync-stat-count">0</span> local only</span>
+                <span class="sync-stat synced"><span class="sync-stat-count">0</span> ${t('repos.stat_synced')}</span>
+                <span class="sync-stat new"><span class="sync-stat-count">0</span> ${t('repos.stat_new')}</span>
+                <span class="sync-stat outdated"><span class="sync-stat-count">0</span> ${t('repos.stat_outdated')}</span>
+                <span class="sync-stat local"><span class="sync-stat-count">0</span> ${t('repos.stat_local')}</span>
             </div>
             <div class="file-skeleton flex-col" style="display:none;">
                 <div class="skeleton skeleton-row"></div>
@@ -104,8 +105,8 @@ export function createRepoCard(repo) {
             <ul class="local-file-list"></ul>
             <div class="local-list-controls" style="display:none;">
                 <div class="local-controls-left">
-                    <button class="btn btn-ghost btn-sm select-all-local-btn">All</button>
-                    <button class="btn btn-ghost btn-sm deselect-all-local-btn">None</button>
+                    <button class="btn btn-ghost btn-sm select-all-local-btn">${t('repos.select_all_local')}</button>
+                    <button class="btn btn-ghost btn-sm deselect-all-local-btn">${t('repos.deselect_all_local')}</button>
                 </div>
                 <div class="local-controls-right">
                     <button class="btn btn-primary btn-sm download-updates-btn"
@@ -117,7 +118,7 @@ export function createRepoCard(repo) {
                             <polyline points="7 10 12 15 17 10"/>
                             <line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
-                        Download Now
+                        ${t('repos.download_now')}
                     </button>
                     <button class="btn btn-secondary btn-sm schedule-updates-btn"
                             data-repo="${escapeHtml(repo)}" data-scheduled="true" style="display:none;">
@@ -126,7 +127,7 @@ export function createRepoCard(repo) {
                              stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                         </svg>
-                        Schedule
+                        ${t('repos.schedule')}
                     </button>
                 </div>
             </div>
@@ -188,13 +189,13 @@ export async function refreshRepoStatus(card) {
     const scheduleBtn   = card.querySelector('.schedule-updates-btn');
     const refreshIcon   = card.querySelector('.refresh-icon');
 
-    if (skeleton)      { skeleton.style.display = 'flex'; }
-    if (fileList)        fileList.innerHTML = '';
-    if (statsBar)        statsBar.style.display = 'none';
-    if (localControls)   localControls.style.display = 'none';
-    if (downloadBtn)     downloadBtn.style.display = 'none';
-    if (scheduleBtn)     scheduleBtn.style.display = 'none';
-    if (refreshIcon)     refreshIcon.classList.add('is-loading');
+    if (skeleton)    { skeleton.style.display = 'flex'; }
+    if (fileList)      fileList.innerHTML = '';
+    if (statsBar)      statsBar.style.display = 'none';
+    if (localControls) localControls.style.display = 'none';
+    if (downloadBtn)   downloadBtn.style.display = 'none';
+    if (scheduleBtn)   scheduleBtn.style.display = 'none';
+    if (refreshIcon)   refreshIcon.classList.add('is-loading');
 
     try {
         const response = await fetchJson('/api/repository-status', {
@@ -263,7 +264,6 @@ export async function refreshRepoStatus(card) {
             if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
         }
 
-        // Sync exclude toggle (lazy-load config once per session)
         try {
             if (!cachedSyncConfig) {
                 const cfgResp = await fetch('/api/sync/config');
@@ -275,18 +275,15 @@ export async function refreshRepoStatus(card) {
             syncToggle.innerHTML = `
                 <label class="sync-exclude-label">
                     <input type="checkbox" class="sync-exclude-cb" ${excluded ? '' : 'checked'}>
-                    <span>Include in Auto-Sync</span>
+                    <span>${t('repos.include_in_sync')}</span>
                 </label>`;
             syncToggle.querySelector('.sync-exclude-cb').addEventListener('change', async (e) => {
                 const endpoint = e.target.checked ? '/api/sync/include' : '/api/sync/exclude';
-                await fetchJson(endpoint, {
-                    method: 'POST',
-                    body:   JSON.stringify({ repo_id: repoId }),
-                });
+                await fetchJson(endpoint, { method: 'POST', body: JSON.stringify({ repo_id: repoId }) });
                 setCachedSyncConfig(null);
             });
             body.appendChild(syncToggle);
-        } catch { /* ignore — sync config unavailable */ }
+        } catch { /* ignore */ }
 
     } catch (error) {
         if (skeleton) skeleton.style.display = 'none';
@@ -301,10 +298,10 @@ export async function refreshRepoStatus(card) {
                         <line x1="12" y1="8" x2="12" y2="12"/>
                         <line x1="12" y1="16" x2="12.01" y2="16"/>
                     </svg>
-                    Not found on HuggingFace — local files only.
+                    ${t('repos.not_on_hf')}
                 </li>`;
         } else {
-            showToast('error', 'Status Error', error.message);
+            showToast('error', t('repos.status_error'), error.message);
         }
     } finally {
         if (refreshIcon) refreshIcon.classList.remove('is-loading');
@@ -394,9 +391,7 @@ export async function loadHiddenRepos() {
         const resp   = await fetch('/api/repo/hidden');
         const hidden = await resp.json();
         _completedListUl.querySelectorAll('.repo-card.is-hidden-repo').forEach(el => el.remove());
-        hidden.forEach(repo => {
-            _completedListUl.appendChild(createHiddenRepoCard(repo));
-        });
+        hidden.forEach(repo => _completedListUl.appendChild(createHiddenRepoCard(repo)));
     } catch (e) {
         console.error('Error loading hidden repos:', e);
     }

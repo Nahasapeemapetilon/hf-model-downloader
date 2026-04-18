@@ -1,10 +1,10 @@
 import { fetchJson } from './api.js';
 import { escapeHtml } from './utils.js';
+import { t } from './i18n.js';
 
-let _browseState = { query: '', tag: '', sort: 'downloads' };
+let _browseState   = { query: '', tag: '', sort: 'downloads' };
 let _debounceTimer = null;
-let _loaded = false;
-
+let _loaded        = false;
 let _trendingListEl = null;
 
 function formatCount(n) {
@@ -17,7 +17,7 @@ function formatCount(n) {
 function renderBrowseResults(models) {
     _trendingListEl.innerHTML = '';
     if (!models || models.length === 0) {
-        _trendingListEl.innerHTML = '<div class="trending-empty">No models found.</div>';
+        _trendingListEl.innerHTML = `<div class="trending-empty">${t('explore.no_results')}</div>`;
         return;
     }
     const isSortedByLikes = _browseState.sort === 'likes';
@@ -52,7 +52,7 @@ function renderBrowseResults(models) {
 
 async function loadBrowseResults() {
     _loaded = false;
-    _trendingListEl.innerHTML = '<div class="trending-empty"><span class="spinner" aria-hidden="true"></span> Loading…</div>';
+    _trendingListEl.innerHTML = `<div class="trending-empty"><span class="spinner" aria-hidden="true"></span> ${t('explore.loading')}</div>`;
     try {
         const response = await fetchJson('/api/search-models', {
             method: 'POST',
@@ -68,7 +68,7 @@ async function loadBrowseResults() {
         renderBrowseResults(models);
         _loaded = true;
     } catch (error) {
-        _trendingListEl.innerHTML = `<div class="trending-empty trending-error">Error: ${escapeHtml(error.message)}</div>`;
+        _trendingListEl.innerHTML = `<div class="trending-empty trending-error">${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -82,8 +82,8 @@ function scheduleBrowseLoad(immediate = false) {
 }
 
 export function openExploreWithQuery(query) {
-    const trendingContent = document.getElementById('trending-content');
-    const trendingToggle  = document.getElementById('trending-toggle');
+    const trendingContent  = document.getElementById('trending-content');
+    const trendingToggle   = document.getElementById('trending-toggle');
     const modelSearchInput = document.getElementById('model-search-input');
 
     if (modelSearchInput) modelSearchInput.value = query;
@@ -112,9 +112,7 @@ export function initExplore() {
             trendingContent.style.display = isOpen ? 'none' : 'block';
             trendingToggle.setAttribute('aria-expanded', String(!isOpen));
             trendingToggle.classList.toggle('is-open', !isOpen);
-            if (!isOpen && !_loaded) {
-                loadBrowseResults();
-            }
+            if (!isOpen && !_loaded) loadBrowseResults();
         });
     }
 

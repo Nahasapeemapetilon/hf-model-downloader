@@ -1,5 +1,6 @@
 import { fetchJson } from './api.js';
 import { showToast } from './toast.js';
+import { t } from './i18n.js';
 
 let _dirty = false;
 
@@ -25,7 +26,7 @@ export function updateSchedulerUI(sched) {
             badge.textContent = 'Off';
             badge.className   = 'badge';
         } else if (sched.in_window) {
-            badge.textContent = 'Active';
+            badge.textContent = t('status.downloading').slice(0, 6) === 'Lädt' ? 'Aktiv' : 'Active';
             badge.className   = 'badge badge-active';
         } else {
             badge.textContent = 'Waiting';
@@ -38,7 +39,7 @@ export function updateSchedulerUI(sched) {
             const h = Math.floor(sched.minutes_until_window / 60);
             const m = sched.minutes_until_window % 60;
             const timeStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
-            nextWin.textContent   = `Next window starts at ${sched.start} (in ${timeStr})`;
+            nextWin.textContent   = t('scheduler.next_window', { start: sched.start, time: timeStr });
             nextWin.style.display = 'block';
         } else {
             nextWin.style.display = 'none';
@@ -47,17 +48,14 @@ export function updateSchedulerUI(sched) {
 }
 
 export function initScheduler() {
-    // Mark dirty when user touches any scheduler control
     document.querySelectorAll('#scheduler-enabled, #scheduler-start, #scheduler-end, .day-pill input')
         .forEach(el => el.addEventListener('change', () => { _dirty = true; }));
 
-    // Load initial config
     fetch('/api/scheduler')
         .then(r => r.json())
         .then(updateSchedulerUI)
         .catch(() => {});
 
-    // Save button
     const saveBtn = document.getElementById('scheduler-save-btn');
     if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
@@ -76,12 +74,12 @@ export function initScheduler() {
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
                 _dirty = false;
-                updateSchedulerUI({ ...result, in_window: result.in_window, minutes_until_window: result.minutes_until_window });
-                showToast('success', 'Scheduler saved', enabled
-                    ? `Active ${start}–${end}`
-                    : 'Scheduler disabled.');
+                updateSchedulerUI({ ...result });
+                showToast('success', t('scheduler.saved'), enabled
+                    ? t('scheduler.active_label', { start, end })
+                    : t('scheduler.disabled'));
             } catch (err) {
-                showToast('error', 'Save failed', err.message || 'Could not save scheduler.');
+                showToast('error', t('scheduler.save_error'), err.message || t('scheduler.save_fail'));
             }
         });
     }

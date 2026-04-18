@@ -2,10 +2,11 @@ import { fetchJson } from './api.js';
 import { settings, applySettings } from './state.js';
 import { updateSchedulerUI } from './scheduler.js';
 import { updateSyncStatusDisplay } from './sync.js';
+import { t } from './i18n.js';
 
 function updateBandwidthDisplay(mbps) {
     const el = document.getElementById('bandwidth-display');
-    if (el) el.textContent = mbps > 0 ? `${mbps.toFixed(1)} MB/s` : 'Unlimited';
+    if (el) el.textContent = mbps > 0 ? `${mbps.toFixed(1)} MB/s` : t('settings.unlimited');
 }
 
 export async function openSettings() {
@@ -58,7 +59,6 @@ export function initSettings() {
     const closeBtn = document.getElementById('settings-close-btn');
     const backdrop = document.getElementById('settings-backdrop');
 
-    // Tab switching
     if (modal) {
         modal.addEventListener('click', (e) => {
             const tab = e.target.closest('.settings-tab');
@@ -83,7 +83,6 @@ export function initSettings() {
         if (e.key === 'Escape' && modal?.style.display !== 'none') closeSettings();
     });
 
-    // Toggle settings from saved state
     [
         { id: 'setting-file-delete',   key: 'allowFileDelete'  },
         { id: 'setting-repo-delete',   key: 'allowRepoDelete'  },
@@ -100,7 +99,6 @@ export function initSettings() {
         });
     });
 
-    // Bandwidth slider (debounced auto-save)
     let _bwSaveTimer = null;
     const bwSlider = document.getElementById('setting-bandwidth');
     if (bwSlider) {
