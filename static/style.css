@@ -2317,6 +2317,32 @@ body.allow-file-delete .file-delete-btn:hover                   { opacity: 1; }
     opacity: 0.7;
 }
 
+.app-footer-bmc {
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+.app-footer-bmc:hover {
+    opacity: 1;
+}
+
+/* Settings modal footer */
+.settings-footer {
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--border-subtle);
+    text-align: center;
+}
+
+.settings-bmc-link {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+    transition: opacity 0.15s, color 0.15s;
+}
+.settings-bmc-link:hover {
+    opacity: 1;
+    color: var(--text-secondary);
+}
+
 /* Repo delete button — red hover */
 .repo-delete-btn:hover {
     color: var(--color-error) !important;
