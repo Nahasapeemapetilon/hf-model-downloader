@@ -1,3 +1,18 @@
+// CSRF token from meta tag — added to all mutating requests
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+async function fetchJson(url, options = {}) {
+    const method  = (options.method || 'GET').toUpperCase();
+    const headers = { ...(options.headers || {}) };
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    if (options.body !== undefined && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
+    return fetch(url, { ...options, headers });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
 
     // ============================================================
@@ -452,9 +467,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (refreshIcon)   refreshIcon.classList.add('is-loading');
 
         try {
-            const response = await fetch('/api/repository-status', {
+            const response = await fetchJson('/api/repository-status', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ repo_id: repoId })
             });
             if (!response.ok) {
@@ -541,9 +555,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     </label>`;
                 syncToggle.querySelector('.sync-exclude-cb').addEventListener('change', async (e) => {
                     const endpoint = e.target.checked ? '/api/sync/include' : '/api/sync/exclude';
-                    await fetch(endpoint, {
+                    await fetchJson(endpoint, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ repo_id: repoId })
                     });
                     // Invalidate cached config so next open re-fetches
@@ -976,9 +989,8 @@ document.addEventListener("DOMContentLoaded", function () {
         fileSelectionContainer.style.display = 'none';
 
         try {
-            const response = await fetch("/api/list-files", {
+            const response = await fetchJson("/api/list-files", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ repo_id: currentRepoId })
             });
             if (!response.ok) throw new Error((await response.json()).error);
@@ -1028,9 +1040,8 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
         try {
-            const response = await fetch("/download", {
+            const response = await fetchJson("/download", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ repo_id: currentRepoId, files: selectedFiles, scheduled })
             });
             const result = await response.json();
@@ -1100,7 +1111,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         try {
-            const response = await fetch(url, { method: 'POST' });
+            const response = await fetchJson(url, { method: 'POST' });
             if (!response.ok) throw new Error((await response.json()).error);
             updateDownloadProgress();
         } catch (error) {
@@ -1112,14 +1123,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // EVENT LISTENERS — Download Controls
     // ============================================================
     document.getElementById('pause-btn').addEventListener('click',
-        () => fetch("/pause-download", { method: "POST" }));
+        () => fetchJson("/pause-download", { method: "POST" }));
     document.getElementById('resume-btn').addEventListener('click',
-        () => fetch("/resume-download", { method: "POST" }));
+        () => fetchJson("/resume-download", { method: "POST" }));
     document.getElementById('cancel-btn').addEventListener('click',
-        () => fetch("/cancel-download", { method: "POST" }));
+        () => fetchJson("/cancel-download", { method: "POST" }));
     document.getElementById('to-scheduler-btn').addEventListener('click', async () => {
         try {
-            const response = await fetch("/api/current/to-scheduler", { method: "POST" });
+            const response = await fetchJson("/api/current/to-scheduler", { method: "POST" });
             const result   = await response.json();
             if (!response.ok) throw new Error(result.error);
             showToast('info', 'Moved to Scheduler', result.message);
@@ -1144,9 +1155,8 @@ document.addEventListener("DOMContentLoaded", function () {
         // Hide repo
         if (target.closest('.repo-hide-btn')) {
             try {
-                const response = await fetch('/api/repo/hide', {
+                const response = await fetchJson('/api/repo/hide', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repo_id: repoId })
                 });
                 if (!response.ok) throw new Error((await response.json()).error);
@@ -1164,9 +1174,8 @@ document.addEventListener("DOMContentLoaded", function () {
         // Unhide repo
         if (target.closest('.repo-unhide-btn')) {
             try {
-                const response = await fetch('/api/repo/unhide', {
+                const response = await fetchJson('/api/repo/unhide', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repo_id: repoId })
                 });
                 if (!response.ok) throw new Error((await response.json()).error);
@@ -1183,9 +1192,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (target.closest('.repo-delete-btn')) {
             if (!confirm(`Delete "${repoId}" and all its files from disk?\nThis cannot be undone.`)) return;
             try {
-                const response = await fetch('/api/repo', {
+                const response = await fetchJson('/api/repo', {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repo_id: repoId })
                 });
                 const result = await response.json();
@@ -1196,9 +1204,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 confirmedHFRepos.delete(repoId);
                 saveLocalOnlyCache();
                 // Also remove from hidden list if it was hidden
-                await fetch('/api/repo/unhide', {
+                await fetchJson('/api/repo/unhide', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repo_id: repoId })
                 }).catch(() => {});
                 if (!card.classList.contains('is-hidden-repo')) {
@@ -1218,9 +1225,8 @@ document.addEventListener("DOMContentLoaded", function () {
             const filename = btn.dataset.file;
             if (!confirm(`Delete "${filename}"?\nIt will need to be re-downloaded from HuggingFace.`)) return;
             try {
-                const response = await fetch('/api/file', {
+                const response = await fetchJson('/api/file', {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repo_id: repoId, filename })
                 });
                 const result = await response.json();
@@ -1278,9 +1284,8 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             try {
-                const response = await fetch("/download", {
+                const response = await fetchJson("/download", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ repo_id: repoId, files: filesToDownload, scheduled })
                 });
                 const result = await response.json();
@@ -1383,9 +1388,8 @@ document.addEventListener("DOMContentLoaded", function () {
             ).map(cb => parseInt(cb.value));
 
             try {
-                const response = await fetch('/api/scheduler', {
+                const response = await fetchJson('/api/scheduler', {
                     method:  'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body:    JSON.stringify({ enabled, start, end, days }),
                 });
                 const result = await response.json();
@@ -1544,9 +1548,8 @@ document.addEventListener("DOMContentLoaded", function () {
             clearTimeout(_bwSaveTimer);
             _bwSaveTimer = setTimeout(async () => {
                 try {
-                    await fetch('/api/settings/bandwidth', {
+                    await fetchJson('/api/settings/bandwidth', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ bandwidth_limit_mbps: mbps })
                     });
                 } catch { /* ignore */ }
@@ -1559,9 +1562,8 @@ document.addEventListener("DOMContentLoaded", function () {
     // ============================================================
     async function saveSyncConfig(partial) {
         try {
-            const resp = await fetch('/api/sync/config', {
+            const resp = await fetchJson('/api/sync/config', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(partial),
             });
             if (resp.ok) _cachedSyncConfig = null; // Invalidate cached config
@@ -1594,7 +1596,7 @@ document.addEventListener("DOMContentLoaded", function () {
         syncRunNowBtn.addEventListener('click', async () => {
             syncRunNowBtn.disabled = true;
             try {
-                const resp   = await fetch('/api/sync/run', { method: 'POST' });
+                const resp   = await fetchJson('/api/sync/run', { method: 'POST' });
                 const result = await resp.json();
                 if (!resp.ok) throw new Error(result.error);
                 showToast('info', 'Sync started', 'Checking repos for updates…');

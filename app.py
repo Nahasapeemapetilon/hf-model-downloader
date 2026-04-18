@@ -8,6 +8,7 @@ import os
 import sys
 
 from flask import Flask, Response, request
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 # ============================================================
 # Logging (muss vor allen anderen Imports stehen)
@@ -57,9 +58,17 @@ sync_manager.set_download_manager(download_manager)
 # Flask app
 # ============================================================
 app = Flask(__name__)
-app.config["APP_VERSION"]    = APP_VERSION
-app.download_manager         = download_manager
-app.sync_manager             = sync_manager
+app.config["APP_VERSION"]        = APP_VERSION
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB max request body
+app.config["SECRET_KEY"]         = os.environ.get("SECRET_KEY", os.urandom(24).hex())
+app.download_manager             = download_manager
+app.sync_manager                 = sync_manager
+
+csrf = CSRFProtect(app)
+
+@app.context_processor
+def inject_csrf():
+    return dict(csrf_token=generate_csrf())
 
 
 @app.before_request
@@ -75,6 +84,20 @@ def require_auth():
             401,
             {"WWW-Authenticate": 'Basic realm="HF Downloader"'},
         )
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"]        = "DENY"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:;"
+    )
+    return response
 
 
 # ============================================================
