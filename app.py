@@ -79,7 +79,33 @@ if not os.path.exists(DATA_DIR):
     logger.info(f"Data-Verzeichnis erstellt: {DATA_DIR}")
 logger.info(f"Data-Verzeichnis: {DATA_DIR}")
 
-_HIDDEN_PATH = os.path.join(DATA_DIR, 'hidden_repos.json')
+_HIDDEN_PATH   = os.path.join(DATA_DIR, 'hidden_repos.json')
+_SETTINGS_PATH = os.path.join(DATA_DIR, 'settings.json')
+
+# --- App Settings ---
+def _load_settings() -> dict:
+    try:
+        with open(_SETTINGS_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_settings(data: dict):
+    tmp = _SETTINGS_PATH + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, _SETTINGS_PATH)
+
+_app_settings = _load_settings()
+
+def _get_bandwidth_limit() -> int:
+    """Returns bandwidth limit in bytes/sec. 0 = unlimited."""
+    mbps = _app_settings.get('bandwidth_limit_mbps', 0)
+    try:
+        mbps = float(mbps)
+    except (TypeError, ValueError):
+        mbps = 0
+    return int(mbps * 1024 * 1024) if mbps > 0 else 0
 
 def _load_hidden() -> set:
     try:
@@ -568,6 +594,7 @@ class DownloadManager:
                                 last_logged_pct = int((downloaded / total_size * 100) // 25) * 25 if total_size > 0 else -1
                                 _speed_window_bytes = 0
                                 _speed_window_start = time.monotonic()
+                                _chunk_start        = time.monotonic()
                                 with open(local_path, file_mode) as f:
                                     for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
                                         if self._cancel_requested: break
@@ -578,6 +605,18 @@ class DownloadManager:
                                             chunk_len = len(chunk)
                                             downloaded += chunk_len
                                             _speed_window_bytes += chunk_len
+
+                                            # Bandwidth throttle
+                                            bw_limit = _get_bandwidth_limit()
+                                            if bw_limit > 0:
+                                                _chunk_elapsed = time.monotonic() - _chunk_start
+                                                _expected      = chunk_len / bw_limit
+                                                _sleep         = _expected - _chunk_elapsed
+                                                # Sleep in small steps so cancel can interrupt
+                                                while _sleep > 0 and not self._cancel_requested:
+                                                    time.sleep(min(0.05, _sleep))
+                                                    _sleep -= 0.05
+                                            _chunk_start = time.monotonic()
 
                                             # Update speed every second
                                             _now = time.monotonic()
@@ -937,6 +976,26 @@ def completed():
     """Returns the list of completed downloads, excluding hidden repos."""
     hidden = _load_hidden()
     return jsonify([r for r in get_completed_downloads() if r not in hidden])
+
+@app.route("/api/settings/bandwidth", methods=["GET"])
+def get_bandwidth():
+    return jsonify({"bandwidth_limit_mbps": _app_settings.get("bandwidth_limit_mbps", 0)})
+
+@app.route("/api/settings/bandwidth", methods=["POST"])
+def set_bandwidth():
+    global _app_settings
+    data = request.get_json(silent=True) or {}
+    try:
+        mbps = float(data.get("bandwidth_limit_mbps", 0))
+        if mbps < 0:
+            mbps = 0
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid value"}), 400
+    _app_settings["bandwidth_limit_mbps"] = mbps
+    _save_settings(_app_settings)
+    logger.info(f"[SETTINGS] Bandbreiten-Limit: {mbps} MB/s" if mbps > 0 else "[SETTINGS] Bandbreiten-Limit: unbegrenzt")
+    return jsonify({"success": True, "bandwidth_limit_mbps": mbps})
+
 
 @app.route("/api/repo/hidden", methods=["GET"])
 def get_hidden_repos():

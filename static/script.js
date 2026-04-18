@@ -1362,9 +1362,19 @@ document.addEventListener("DOMContentLoaded", function () {
     const settingsCloseBtn = document.getElementById('settings-close-btn');
     const settingsBackdrop = document.getElementById('settings-backdrop');
 
-    function openSettings() {
+    async function openSettings() {
         settingsModal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+        // Load current bandwidth limit from backend
+        try {
+            const resp = await fetch('/api/settings/bandwidth');
+            const data = await resp.json();
+            const slider = document.getElementById('setting-bandwidth');
+            if (slider) {
+                slider.value = data.bandwidth_limit_mbps || 0;
+                updateBandwidthDisplay(parseFloat(slider.value));
+            }
+        } catch { /* ignore */ }
     }
     function closeSettings() {
         settingsModal.style.display = 'none';
@@ -1395,6 +1405,31 @@ document.addEventListener("DOMContentLoaded", function () {
             applySettings();
         });
     });
+
+    // Bandwidth slider
+    function updateBandwidthDisplay(mbps) {
+        const el = document.getElementById('bandwidth-display');
+        if (el) el.textContent = mbps > 0 ? `${mbps.toFixed(1)} MB/s` : 'Unlimited';
+    }
+
+    let _bwSaveTimer = null;
+    const bwSlider = document.getElementById('setting-bandwidth');
+    if (bwSlider) {
+        bwSlider.addEventListener('input', () => {
+            const mbps = parseFloat(bwSlider.value);
+            updateBandwidthDisplay(mbps);
+            clearTimeout(_bwSaveTimer);
+            _bwSaveTimer = setTimeout(async () => {
+                try {
+                    await fetch('/api/settings/bandwidth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ bandwidth_limit_mbps: mbps })
+                    });
+                } catch { /* ignore */ }
+            }, 400);
+        });
+    }
 
     // ============================================================
     // SHOW HIDDEN TOGGLE

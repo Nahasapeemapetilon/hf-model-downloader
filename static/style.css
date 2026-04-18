@@ -2106,6 +2106,48 @@ a { color: inherit; text-decoration: none; }
     background: var(--text-inverse);
 }
 
+/* Bandwidth slider row */
+.settings-row-slider {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    cursor: default;
+}
+
+.bandwidth-slider-wrap {
+    width: 100%;
+}
+
+.bandwidth-slider {
+    width: 100%;
+    height: 4px;
+    appearance: none;
+    background: var(--bg-surface-3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    accent-color: var(--accent-500);
+}
+
+.bandwidth-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-500);
+    cursor: pointer;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
+}
+
+.bandwidth-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-500);
+    cursor: pointer;
+    border: none;
+}
+
 /* Delete button visibility — controlled by body classes */
 .repo-delete-btn    { display: none; }
 .file-delete-btn    { display: none; }
