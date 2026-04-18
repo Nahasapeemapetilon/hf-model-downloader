@@ -21,6 +21,10 @@ document.addEventListener("DOMContentLoaded", function () {
     let trendingLoaded       = false;
     let repoFilter           = localStorage.getItem('repoFilter') || 'all'; // 'all' | 'hf' | 'local'
 
+    // Auto-Sync state (updated from /api/sync/status on each completed list load)
+    let syncState = { status: 'idle', repos: {}, outdated_count: 0, last_run: null };
+    let _cachedSyncConfig = null; // Lazily loaded, used for exclude-toggle in expanded cards
+
     // Repos confirmed as "not on HuggingFace"
     const localOnlyRepos  = new Set(JSON.parse(localStorage.getItem('localOnlyRepos')  || '[]'));
     // Repos confirmed as existing on HuggingFace
@@ -315,6 +319,19 @@ document.addEventListener("DOMContentLoaded", function () {
         li.className = `repo-card completed-item ${repoTypeClass(repo)}`;
         li.dataset.repo = repo;
 
+        const syncInfo    = syncState.repos[repo];
+        const isOutdated  = syncInfo && syncInfo.status === 'outdated';
+        let syncBadge = '';
+        if (isOutdated) {
+            const outdCnt = (syncInfo.outdated_files || []).length;
+            const newCnt  = (syncInfo.new_files || []).length;
+            const parts   = [];
+            if (outdCnt) parts.push(`${outdCnt} updated`);
+            if (newCnt)  parts.push(`${newCnt} new`);
+            const label   = newCnt && !outdCnt ? '✦ New files' : '↑ Update';
+            syncBadge = `<span class="sync-outdated-badge" title="${parts.join(' · ')}">${label}</span>`;
+        }
+
         li.innerHTML = `
             <div class="repo-card-header">
                 <div class="repo-card-title">
@@ -324,6 +341,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                     </svg>
                     <span class="repo-card-name truncate" title="${escapeHtml(repo)}">${escapeHtml(repo)}</span>
+                    ${syncBadge}
                 </div>
                 <div class="repo-card-actions">
                     <button class="btn btn-ghost btn-icon btn-sm update-btn"
@@ -507,6 +525,33 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
             }
 
+            // Sync exclude toggle (lazy-load config once per session)
+            try {
+                if (!_cachedSyncConfig) {
+                    const cfgResp = await fetch('/api/sync/config');
+                    _cachedSyncConfig = await cfgResp.json();
+                }
+                const excluded   = (_cachedSyncConfig.excluded_repos || []).includes(repoId);
+                const syncToggle = document.createElement('div');
+                syncToggle.className = 'sync-exclude-row';
+                syncToggle.innerHTML = `
+                    <label class="sync-exclude-label">
+                        <input type="checkbox" class="sync-exclude-cb" ${excluded ? '' : 'checked'}>
+                        <span>Include in Auto-Sync</span>
+                    </label>`;
+                syncToggle.querySelector('.sync-exclude-cb').addEventListener('change', async (e) => {
+                    const endpoint = e.target.checked ? '/api/sync/include' : '/api/sync/exclude';
+                    await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repo_id: repoId })
+                    });
+                    // Invalidate cached config so next open re-fetches
+                    _cachedSyncConfig = null;
+                });
+                body.appendChild(syncToggle);
+            } catch { /* ignore — sync config unavailable */ }
+
         } catch (error) {
             if (skeleton) skeleton.style.display = 'none';
             if (error.notFound) {
@@ -590,8 +635,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function updateCompletedList() {
         try {
-            const response  = await fetch("/completed");
-            const completed = await response.json();
+            const [completedResp, syncResp] = await Promise.all([
+                fetch("/completed"),
+                fetch("/api/sync/status"),
+            ]);
+            const completed = await completedResp.json();
+
+            // Update sync state (for outdated badges on cards)
+            try { syncState = await syncResp.json(); } catch { /* ignore */ }
 
             // Phase 1: render immediately using cached HF knowledge
             renderCompletedList(completed);
@@ -636,6 +687,17 @@ document.addEventListener("DOMContentLoaded", function () {
             updateStatusPill(status.status);
             renderQueue(status.queue);
             if (status.scheduler) updateSchedulerUI(status.scheduler);
+
+            // Sync indicator in topbar
+            const syncInd  = document.getElementById('sync-indicator');
+            const syncText = document.getElementById('sync-indicator-text');
+            if (status.sync && status.sync.status === 'running') {
+                if (syncInd)  syncInd.style.display = 'flex';
+                const p = status.sync.progress || {};
+                if (syncText) syncText.textContent = `Sync ${p.checked || 0}/${p.total || 0}`;
+            } else {
+                if (syncInd)  syncInd.style.display = 'none';
+            }
 
             const container = document.getElementById('download-status-container');
             const badge     = document.getElementById('download-status-badge');
@@ -710,7 +772,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Determine next poll interval based on status
             let nextInterval;
-            if (status.status === 'idle' && (!status.queue || status.queue.length === 0)) {
+            const syncRunning = status.sync && status.sync.status === 'running';
+            if (status.status === 'idle' && (!status.queue || status.queue.length === 0) && !syncRunning) {
                 stopPollingProgress();
                 return;
             } else if (status.status === 'downloading' || status.status === 'paused') {
@@ -1362,6 +1425,47 @@ document.addEventListener("DOMContentLoaded", function () {
     const settingsCloseBtn = document.getElementById('settings-close-btn');
     const settingsBackdrop = document.getElementById('settings-backdrop');
 
+    // Tab switching
+    settingsModal.addEventListener('click', (e) => {
+        const tab = e.target.closest('.settings-tab');
+        if (!tab) return;
+        const tabId = tab.dataset.tab;
+        settingsModal.querySelectorAll('.settings-tab').forEach(t => {
+            t.classList.toggle('is-active', t === tab);
+            t.setAttribute('aria-selected', t === tab);
+        });
+        settingsModal.querySelectorAll('.settings-tab-panel').forEach(p => {
+            p.classList.toggle('is-active', p.id === `spanel-${tabId}`);
+        });
+    });
+
+    async function updateSyncStatusDisplay() {
+        try {
+            const resp = await fetch('/api/sync/status');
+            const s    = await resp.json();
+            const el   = document.getElementById('sync-last-run-text');
+            if (!el) return;
+            if (s.last_run) {
+                const dt   = new Date(s.last_run);
+                const diff = Math.round((Date.now() - dt.getTime()) / 60000);
+                let timeStr;
+                if (diff < 1)    timeStr = 'Just now';
+                else if (diff < 60)   timeStr = `${diff} min ago`;
+                else if (diff < 1440) timeStr = `${Math.round(diff / 60)}h ago`;
+                else timeStr = dt.toLocaleDateString();
+                if (s.status === 'running') {
+                    el.textContent = `Running… (${s.progress?.checked || 0}/${s.progress?.total || 0})`;
+                } else if (s.outdated_count > 0) {
+                    el.textContent = `${timeStr} · ⚠ ${s.outdated_count} repo${s.outdated_count !== 1 ? 's' : ''} outdated`;
+                } else {
+                    el.textContent = `${timeStr} · ✓ All up to date`;
+                }
+            } else {
+                el.textContent = 'Never';
+            }
+        } catch { /* ignore */ }
+    }
+
     async function openSettings() {
         settingsModal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
@@ -1375,6 +1479,25 @@ document.addEventListener("DOMContentLoaded", function () {
                 updateBandwidthDisplay(parseFloat(slider.value));
             }
         } catch { /* ignore */ }
+        // Load Auto-Sync config
+        try {
+            const syncResp = await fetch('/api/sync/config');
+            const cfg      = await syncResp.json();
+            const elEnabled   = document.getElementById('setting-auto-sync-enabled');
+            const elMode      = document.getElementById('setting-sync-mode');
+            const elInterval  = document.getElementById('setting-sync-interval');
+            const elInWindow  = document.getElementById('setting-sync-in-window');
+            if (elEnabled)  elEnabled.checked  = cfg.enabled;
+            if (elMode)     elMode.value        = cfg.mode || 'notify';
+            if (elInterval) elInterval.value    = String(cfg.interval_hours || 24);
+            if (elInWindow) elInWindow.checked  = cfg.run_in_scheduler_window !== false;
+        } catch { /* ignore */ }
+        // Load scheduler config
+        try {
+            const schedResp = await fetch('/api/scheduler');
+            if (schedResp.ok) updateSchedulerUI(await schedResp.json());
+        } catch { /* ignore */ }
+        updateSyncStatusDisplay();
     }
     function closeSettings() {
         settingsModal.style.display = 'none';
@@ -1428,6 +1551,60 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 } catch { /* ignore */ }
             }, 400);
+        });
+    }
+
+    // ============================================================
+    // AUTO-SYNC SETTINGS
+    // ============================================================
+    async function saveSyncConfig(partial) {
+        try {
+            const resp = await fetch('/api/sync/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(partial),
+            });
+            if (resp.ok) _cachedSyncConfig = null; // Invalidate cached config
+        } catch { /* ignore */ }
+    }
+
+    const syncEnabledEl   = document.getElementById('setting-auto-sync-enabled');
+    const syncModeEl      = document.getElementById('setting-sync-mode');
+    const syncIntervalEl  = document.getElementById('setting-sync-interval');
+    const syncInWindowEl  = document.getElementById('setting-sync-in-window');
+    const syncRunNowBtn   = document.getElementById('setting-sync-run-now');
+
+    if (syncEnabledEl) {
+        syncEnabledEl.addEventListener('change', () =>
+            saveSyncConfig({ enabled: syncEnabledEl.checked }));
+    }
+    if (syncModeEl) {
+        syncModeEl.addEventListener('change', () =>
+            saveSyncConfig({ mode: syncModeEl.value }));
+    }
+    if (syncIntervalEl) {
+        syncIntervalEl.addEventListener('change', () =>
+            saveSyncConfig({ interval_hours: parseInt(syncIntervalEl.value, 10) }));
+    }
+    if (syncInWindowEl) {
+        syncInWindowEl.addEventListener('change', () =>
+            saveSyncConfig({ run_in_scheduler_window: syncInWindowEl.checked }));
+    }
+    if (syncRunNowBtn) {
+        syncRunNowBtn.addEventListener('click', async () => {
+            syncRunNowBtn.disabled = true;
+            try {
+                const resp   = await fetch('/api/sync/run', { method: 'POST' });
+                const result = await resp.json();
+                if (!resp.ok) throw new Error(result.error);
+                showToast('info', 'Sync started', 'Checking repos for updates…');
+                startPollingProgress(); // keep poll alive to show topbar indicator
+                setTimeout(updateSyncStatusDisplay, 1000);
+            } catch (err) {
+                showToast('error', 'Sync failed', err.message || 'Could not start sync.');
+            } finally {
+                setTimeout(() => { syncRunNowBtn.disabled = false; }, 3000);
+            }
         });
     }
 
