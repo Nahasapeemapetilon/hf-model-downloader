@@ -1,8 +1,11 @@
 """routes/hf.py — HuggingFace API Routen"""
 import logging
+import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, jsonify, request
 from huggingface_hub import HfApi
 
 try:
@@ -19,7 +22,33 @@ logger = logging.getLogger("hf_downloader")
 hf_bp = Blueprint("hf", __name__)
 
 
+# ---------------------------------------------------------------------------
+# Simple in-memory rate limiter (per endpoint, global — single-user app)
+# ---------------------------------------------------------------------------
+_rate_windows: dict[str, deque] = {}
+
+def _rate_limit(max_calls: int, window_seconds: int = 60):
+    """Decorator: rejects requests once max_calls is exceeded within window_seconds."""
+    def decorator(fn):
+        _rate_windows[fn.__name__] = deque()
+
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            now    = time.monotonic()
+            window = _rate_windows[fn.__name__]
+            while window and window[0] < now - window_seconds:
+                window.popleft()
+            if len(window) >= max_calls:
+                logger.warning(f"[RATE LIMIT] {fn.__name__} – {max_calls} Anfragen/{window_seconds}s überschritten")
+                return jsonify({"error": "Rate limit exceeded. Please wait before retrying."}), 429
+            window.append(now)
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 @hf_bp.route("/api/list-files", methods=["POST"])
+@_rate_limit(max_calls=60, window_seconds=60)
 def list_files_route():
     data    = request.get_json(silent=True) or {}
     repo_id = data.get("repo_id", "").strip()
@@ -43,6 +72,7 @@ def list_files_route():
 
 
 @hf_bp.route("/api/repository-status", methods=["POST"])
+@_rate_limit(max_calls=60, window_seconds=60)
 def repository_status():
     import os
     data    = request.get_json(silent=True) or {}
@@ -94,6 +124,7 @@ def repository_status():
 
 
 @hf_bp.route("/api/search-models", methods=["POST"])
+@_rate_limit(max_calls=30, window_seconds=60)
 def search_models():
     data         = request.json or {}
     query        = data.get("query", "").strip()
@@ -130,6 +161,7 @@ def search_models():
 
 
 @hf_bp.route("/api/repos/check-hf", methods=["POST"])
+@_rate_limit(max_calls=20, window_seconds=60)
 def check_repos_hf():
     data  = request.get_json(silent=True) or {}
     repos = [r for r in data.get("repos", []) if isinstance(r, str)][:50]
