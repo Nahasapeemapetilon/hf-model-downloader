@@ -42,10 +42,13 @@ def _load_settings() -> dict:
 
 
 def _save_settings(data: dict):
-    tmp = SETTINGS_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    os.replace(tmp, SETTINGS_PATH)
+    try:
+        tmp = SETTINGS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, SETTINGS_PATH)
+    except Exception as e:
+        logger.warning(f"[SETTINGS] Speichern fehlgeschlagen: {e}")
 
 
 _HISTORY_MAX = 100

@@ -4,6 +4,7 @@ Logging-Setup, Manager-Singletons, Auth, Blueprint-Registrierung.
 Business-Logik lebt in managers/ und routes/.
 """
 import logging
+import logging.handlers
 import os
 import sys
 
@@ -20,7 +21,9 @@ stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_fmt)
 
 log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "unraid_downloader_app.log")
-file_handler = logging.FileHandler(log_file)
+file_handler = logging.handlers.RotatingFileHandler(
+    log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+)
 file_handler.setFormatter(log_fmt)
 
 logger = logging.getLogger("hf_downloader")
@@ -33,8 +36,9 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 # ============================================================
 # Config / Managers
 # ============================================================
-from managers.download_manager import DownloadManager   # noqa: E402
-from managers.sync_manager     import SyncManager       # noqa: E402
+from config                     import get_or_create_secret_key  # noqa: E402
+from managers.download_manager import DownloadManager            # noqa: E402
+from managers.sync_manager     import SyncManager                # noqa: E402
 
 logger.info("=" * 60)
 logger.info("HuggingFace Downloader gestartet")
@@ -60,7 +64,7 @@ sync_manager.set_download_manager(download_manager)
 app = Flask(__name__)
 app.config["APP_VERSION"]        = APP_VERSION
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB max request body
-app.config["SECRET_KEY"]         = os.environ.get("SECRET_KEY", os.urandom(24).hex())
+app.config["SECRET_KEY"]         = get_or_create_secret_key()
 app.download_manager             = download_manager
 app.sync_manager                 = sync_manager
 

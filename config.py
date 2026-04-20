@@ -3,6 +3,7 @@ config.py — Zentrale Konfiguration für HF Downloader.
 Liest Umgebungsvariablen und definiert alle Pfade und Konstanten.
 Wird von app.py und den Manager-Modulen importiert.
 """
+import json
 import logging
 import os
 
@@ -49,6 +50,35 @@ def set_hf_token_runtime(token: str | None) -> None:
         logger.info("HF_TOKEN aktualisiert (Settings UI)")
     else:
         logger.info(f"HF_TOKEN Runtime gelöscht – aktiv: {'Env' if _hf_token_env else 'keiner'}")
+
+def get_or_create_secret_key() -> str:
+    """Returns a stable SECRET_KEY across restarts.
+    Priority: SECRET_KEY env var → settings.json → generate & persist."""
+    env_key = os.environ.get("SECRET_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        key = data.get("secret_key", "")
+        if key:
+            return key
+    except Exception:
+        data = {}
+
+    key = os.urandom(24).hex()
+    data["secret_key"] = key
+    try:
+        tmp = SETTINGS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, SETTINGS_PATH)
+        logger.info("SECRET_KEY generiert und in settings.json persistiert.")
+    except Exception as e:
+        logger.warning(f"SECRET_KEY konnte nicht persistiert werden: {e}")
+    return key
+
 
 # --- Download constants ---
 CHUNK_SIZE = 8192  # bytes per read chunk

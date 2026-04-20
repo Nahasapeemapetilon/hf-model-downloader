@@ -21,10 +21,13 @@ def _load() -> list:
 
 
 def _save(data: list) -> None:
-    tmp = HISTORY_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    os.replace(tmp, HISTORY_PATH)
+    try:
+        tmp = HISTORY_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, HISTORY_PATH)
+    except Exception as e:
+        logger.warning(f"[HISTORY] Speichern fehlgeschlagen: {e}")
 
 
 @history_bp.route("/api/history", methods=["GET"])
