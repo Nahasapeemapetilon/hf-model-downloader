@@ -215,5 +215,20 @@
   "bmc.link":  "☕ Buy me a coffee — if HF Downloader saved you some time",
   "bmc.short": "☕ Buy me a coffee",
 
-  "queue.error": "Queue Error"
+  "queue.error": "Queue Error",
+
+  "history.title":          "Download History",
+  "history.clear_all":      "Clear all",
+  "history.empty":          "No downloads recorded yet.",
+  "history.load_error":     "Could not load history.",
+  "history.cleared":        "History cleared",
+  "history.confirm_clear":  "Clear the entire download history?",
+  "history.delete_entry":   "Remove entry",
+  "history.col_date":       "Date",
+  "history.col_files":      "Files",
+  "history.col_size":       "Downloaded",
+  "history.col_duration":   "Duration",
+  "history.status_completed": "completed",
+  "history.status_cancelled": "cancelled",
+  "history.status_error":     "error"
 }

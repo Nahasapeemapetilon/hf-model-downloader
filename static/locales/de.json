@@ -215,5 +215,20 @@
   "bmc.link":  "☕ Kauf mir einen Kaffee — falls HF Downloader dir Zeit gespart hat",
   "bmc.short": "☕ Kauf mir einen Kaffee",
 
-  "queue.error": "Warteschlangen-Fehler"
+  "queue.error": "Warteschlangen-Fehler",
+
+  "history.title":          "Download-Verlauf",
+  "history.clear_all":      "Alle löschen",
+  "history.empty":          "Noch keine Downloads aufgezeichnet.",
+  "history.load_error":     "Verlauf konnte nicht geladen werden.",
+  "history.cleared":        "Verlauf gelöscht",
+  "history.confirm_clear":  "Den gesamten Download-Verlauf löschen?",
+  "history.delete_entry":   "Eintrag entfernen",
+  "history.col_date":       "Datum",
+  "history.col_files":      "Dateien",
+  "history.col_size":       "Heruntergeladen",
+  "history.col_duration":   "Dauer",
+  "history.status_completed": "abgeschlossen",
+  "history.status_cancelled": "abgebrochen",
+  "history.status_error":     "Fehler"
 }

@@ -110,6 +110,7 @@ from routes.repos     import repos_bp      # noqa: E402
 from routes.scheduler import scheduler_bp  # noqa: E402
 from routes.settings  import settings_bp   # noqa: E402
 from routes.sync      import sync_bp       # noqa: E402
+from routes.history   import history_bp    # noqa: E402
 
 app.register_blueprint(main_bp)
 app.register_blueprint(hf_bp)
@@ -118,6 +119,7 @@ app.register_blueprint(repos_bp)
 app.register_blueprint(scheduler_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(sync_bp)
+app.register_blueprint(history_bp)
 
 # ============================================================
 # Entry point

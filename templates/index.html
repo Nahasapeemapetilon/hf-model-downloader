@@ -516,6 +516,33 @@
             </div>
         </section>
 
+        <!-- === Download History === -->
+        <div class="card history-card">
+            <div class="card-header history-header">
+                <button class="history-toggle-btn" id="history-toggle"
+                        aria-expanded="false" aria-controls="history-content" type="button">
+                    <div class="flex items-center gap-2">
+                        <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <h2 data-i18n="history.title">Download History</h2>
+                    </div>
+                    <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="history-clear-btn" type="button"
+                        data-i18n="history.clear_all">Clear all</button>
+            </div>
+            <div id="history-content" style="display:none;">
+                <ul id="history-list" class="history-list"></ul>
+            </div>
+        </div>
+
     </main>
 </div>
 

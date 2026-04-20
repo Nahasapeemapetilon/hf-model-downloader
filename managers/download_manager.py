@@ -14,7 +14,7 @@ from huggingface_hub import hf_hub_url
 
 from config import (
     CHUNK_SIZE, DOWNLOAD_DIR,
-    QUEUE_STATE_PATH, SETTINGS_PATH, SCHEDULER_PATH,
+    QUEUE_STATE_PATH, SETTINGS_PATH, SCHEDULER_PATH, HISTORY_PATH,
     _NET_RETRY_DELAYS, get_hf_token, set_hf_token_runtime,
 )
 from managers.scheduler import SchedulerConfig
@@ -46,6 +46,40 @@ def _save_settings(data: dict):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     os.replace(tmp, SETTINGS_PATH)
+
+
+_HISTORY_MAX = 100
+
+
+def _append_history(job) -> None:
+    try:
+        try:
+            with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except Exception:
+            history = []
+
+        now      = time.time()
+        duration = int(now - job.started_at) if job.started_at else None
+        history.insert(0, {
+            "id":               f"{int(now * 1000)}",
+            "repo_id":          job.repo_id,
+            "file_count":       job.total_files,
+            "bytes_downloaded": job.bytes_downloaded,
+            "started_at":       job.started_at,
+            "completed_at":     now,
+            "duration_seconds": duration,
+            "status":           job.status,
+            "error_msg":        job.error_message if job.status == "error" else None,
+        })
+        history = history[:_HISTORY_MAX]
+
+        tmp = HISTORY_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+        os.replace(tmp, HISTORY_PATH)
+    except Exception as e:
+        logger.warning(f"[HISTORY] Konnte nicht gespeichert werden: {e}")
 
 
 # Module-level settings cache (mutated by the bandwidth/token endpoints)
@@ -87,6 +121,8 @@ class DownloadJob:
         self.total_progress      = 0
         self.download_speed      = 0.0         # bytes/sec (1s sliding window)
         self.eta_seconds         = None        # remaining seconds, None if unknown
+        self.started_at          = None        # time.time() when first byte starts
+        self.bytes_downloaded    = 0           # total bytes written in this job
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +395,7 @@ class DownloadManager:
                     continue
 
                 job = self.current_job
+                job.started_at = time.time()
                 logger.info(f"[START] '{job.repo_id}' | {job.total_files} Datei(en)")
 
                 for i, filename in enumerate(job.files_to_download):
@@ -467,6 +504,7 @@ class DownloadManager:
                                         if chunk:
                                             f.write(chunk)
                                             chunk_len   = len(chunk)
+                                            job.bytes_downloaded += chunk_len
                                             downloaded += chunk_len
                                             _win_bytes += chunk_len
 
@@ -568,6 +606,8 @@ class DownloadManager:
                     elif job.status != "error":
                         job.status = "completed"
                         logger.info(f"[COMPLETED] '{job.repo_id}' ({job.total_files} Datei(en))")
+
+                    _append_history(job)
 
                     if self.current_job == job:
                         self.current_job = None

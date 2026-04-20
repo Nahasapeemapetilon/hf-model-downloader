@@ -58,6 +58,7 @@ _HF_RETRY_STATUSES = {429, 503}
 _HF_RETRY_DELAYS   = [2, 5, 15]    # seconds between HF API retries
 
 # --- Persistent file paths ---
+HISTORY_PATH     = os.path.join(DATA_DIR, "download_history.json")
 HIDDEN_PATH      = os.path.join(DATA_DIR, "hidden_repos.json")
 SETTINGS_PATH    = os.path.join(DATA_DIR, "settings.json")
 SYNC_CONFIG_PATH = os.path.join(DATA_DIR, "sync_config.json")
