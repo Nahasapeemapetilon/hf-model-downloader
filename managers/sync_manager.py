@@ -66,7 +66,10 @@ class SyncManager:
         try:
             with open(SYNC_CONFIG_PATH, "r", encoding="utf-8") as f:
                 return {**self._DEFAULTS, **json.load(f)}
-        except Exception:
+        except FileNotFoundError:
+            return dict(self._DEFAULTS)
+        except Exception as e:
+            logger.warning(f"[SYNC] Konfiguration nicht ladbar, nutze Defaults: {e}")
             return dict(self._DEFAULTS)
 
     def _save_config(self):
@@ -76,18 +79,22 @@ class SyncManager:
         os.replace(tmp, SYNC_CONFIG_PATH)
 
     def _load_state(self) -> dict:
+        _empty = {
+            "last_run":   None,
+            "next_run":   None,
+            "status":     "idle",
+            "last_error": None,
+            "repos":      {},
+            "progress":   {"checked": 0, "total": 0},
+        }
         try:
             with open(SYNC_STATE_PATH, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
-            return {
-                "last_run":  None,
-                "next_run":  None,
-                "status":    "idle",
-                "last_error": None,
-                "repos":     {},
-                "progress":  {"checked": 0, "total": 0},
-            }
+        except FileNotFoundError:
+            return _empty
+        except Exception as e:
+            logger.warning(f"[SYNC] State nicht ladbar, starte neu: {e}")
+            return _empty
 
     def _save_state(self):
         tmp = SYNC_STATE_PATH + ".tmp"
@@ -178,8 +185,8 @@ class SyncManager:
                     elapsed = (datetime.now() - datetime.fromisoformat(last_run)).total_seconds()
                     if elapsed < interval_h * 3600:
                         return
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[SYNC] trigger_if_due: last_run nicht parsbar: {e}")
             if self._running:
                 return
         self.start_sync(triggered_by=triggered_by)

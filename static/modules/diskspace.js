@@ -1,16 +1,10 @@
 import { t } from './i18n.js';
+import { formatBytes } from './utils.js';
 
 let _thresholdGb   = 5;
 let _pollTimer     = null;
 let _sortAsc       = false;   // false = largest first (default)
 let _lastData      = null;
-
-function formatBytes(bytes) {
-    if (bytes >= 1e12) return (bytes / 1e12).toFixed(1) + ' TB';
-    if (bytes >= 1e9)  return (bytes / 1e9).toFixed(1) + ' GB';
-    if (bytes >= 1e6)  return (bytes / 1e6).toFixed(1) + ' MB';
-    return bytes + ' B';
-}
 
 function updateFooter(data) {
     const wrap = document.getElementById('disk-space-display');

@@ -75,14 +75,32 @@ def hf_api_call(fn, *args, **kwargs):
     return fn(*args, **kwargs)
 
 
+_completed_cache: list[str] | None = None
+_completed_cache_ts: float = 0.0
+_COMPLETED_CACHE_TTL: float = 10.0  # seconds
+
+
+def invalidate_completed_cache() -> None:
+    """Force next get_completed_downloads() call to re-scan the disk."""
+    global _completed_cache
+    _completed_cache = None
+
+
 def get_completed_downloads() -> list[str]:
     """
     Scans DOWNLOAD_DIR for local repos.
     Returns sorted list of repo IDs (e.g. 'org/model' or 'gpt2').
-    Filters out directories with invalid names or no files.
+    Result is cached for _COMPLETED_CACHE_TTL seconds to avoid repeated disk scans.
     """
+    global _completed_cache, _completed_cache_ts
+    now = time.monotonic()
+    if _completed_cache is not None and now - _completed_cache_ts < _COMPLETED_CACHE_TTL:
+        return _completed_cache
+
     completed = []
     if not os.path.exists(DOWNLOAD_DIR):
+        _completed_cache    = []
+        _completed_cache_ts = now
         return []
 
     for item in os.listdir(DOWNLOAD_DIR):
@@ -114,4 +132,7 @@ def get_completed_downloads() -> list[str]:
         except OSError:
             continue
 
-    return sorted(set(completed))
+    result = sorted(set(completed))
+    _completed_cache    = result
+    _completed_cache_ts = now
+    return result

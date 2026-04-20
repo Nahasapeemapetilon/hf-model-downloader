@@ -173,7 +173,8 @@ def check_repos_hf():
             return repo_id, True
         except RepositoryNotFoundError:
             return repo_id, False
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[HF] check_repos_hf '{repo_id}': {e}")
             return repo_id, None
 
     result = {}

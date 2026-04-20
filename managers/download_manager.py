@@ -18,7 +18,7 @@ from config import (
     _NET_RETRY_DELAYS, get_hf_token, set_hf_token_runtime,
 )
 from managers.scheduler import SchedulerConfig
-from utils import fmt_size, safe_repo_path
+from utils import fmt_size, invalidate_completed_cache, safe_repo_path
 
 logger = logging.getLogger("hf_downloader")
 
@@ -37,7 +37,10 @@ def _load_settings() -> dict:
     try:
         with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        logger.warning(f"[SETTINGS] Laden fehlgeschlagen, nutze Defaults: {e}")
         return {}
 
 
@@ -609,6 +612,7 @@ class DownloadManager:
                     elif job.status != "error":
                         job.status = "completed"
                         logger.info(f"[COMPLETED] '{job.repo_id}' ({job.total_files} Datei(en))")
+                        invalidate_completed_cache()
 
                     _append_history(job)
 

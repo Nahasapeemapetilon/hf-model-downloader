@@ -1,6 +1,7 @@
 import { fetchJson } from './api.js';
 import { t } from './i18n.js';
 import { showToast } from './toast.js';
+import { formatBytes } from './utils.js';
 
 let _loaded = false;
 
@@ -11,14 +12,6 @@ function esc(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
-}
-
-function formatBytes(b) {
-    if (!b) return '—';
-    if (b >= 1e12) return (b / 1e12).toFixed(1) + ' TB';
-    if (b >= 1e9)  return (b / 1e9).toFixed(1) + ' GB';
-    if (b >= 1e6)  return (b / 1e6).toFixed(1) + ' MB';
-    return (b / 1e3).toFixed(0) + ' KB';
 }
 
 function formatDuration(s) {

@@ -7,7 +7,7 @@ import shutil
 from flask import Blueprint, current_app, jsonify, request
 
 import config as cfg
-from utils import get_completed_downloads, has_any_file, safe_repo_path
+from utils import get_completed_downloads, has_any_file, invalidate_completed_cache, safe_repo_path
 
 logger = logging.getLogger("hf_downloader")
 
@@ -100,6 +100,7 @@ def delete_repo():
             if not os.listdir(parent):
                 os.rmdir(parent)
                 logger.info("[DELETE] Leeres Org-Verzeichnis entfernt")
+        invalidate_completed_cache()
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"[DELETE] Repo '{repo_id}': {e}")
@@ -153,6 +154,7 @@ def delete_file():
                 if not os.listdir(org_dir):
                     os.rmdir(org_dir)
 
+        invalidate_completed_cache()
         return jsonify({"success": True, "repo_deleted": repo_empty})
     except Exception as e:
         logger.error(f"[DELETE] '{filename}' aus '{repo_id}': {e}")
