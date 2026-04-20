@@ -2570,6 +2570,30 @@ body.allow-file-delete .file-delete-btn:hover                   { opacity: 1; }
     color: var(--text-muted);
 }
 
+/* Notification permission badge */
+.notif-permission-badge {
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-left: var(--space-2);
+}
+.notif-permission-badge[data-state="granted"] {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+.notif-permission-badge[data-state="denied"] {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+.notif-permission-badge[data-state="default"] {
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+}
+.settings-row--meta {
+    padding-top: 0;
+    margin-top: calc(var(--space-1) * -1);
+}
+
 /* ------------------------------------------------------------
    Disk Breakdown Modal
    ------------------------------------------------------------ */

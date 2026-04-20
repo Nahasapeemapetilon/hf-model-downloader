@@ -662,6 +662,24 @@
                         <span class="disk-threshold-unit">GB</span>
                     </div>
                 </div>
+
+                <p class="settings-group-title" style="margin-top: var(--space-4);" data-i18n="settings.notifications">Notifications</p>
+
+                <label class="settings-row" id="notifications-setting-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="settings.notifications_enable">Desktop notifications</span>
+                        <span class="settings-row-desc"  data-i18n="settings.notifications_enable_desc">Notify when a download finishes</span>
+                    </div>
+                    <span class="settings-toggle-wrap">
+                        <input type="checkbox" class="settings-toggle-input" id="setting-notifications">
+                        <span class="settings-toggle-slider"></span>
+                    </span>
+                </label>
+
+                <div class="settings-row settings-row--meta">
+                    <span class="settings-row-desc" data-i18n="notif.permission_label">Browser permission:</span>
+                    <span id="notif-permission-status" class="notif-permission-badge"></span>
+                </div>
             </div>
 
             <!-- ===== Scheduler Tab ===== -->

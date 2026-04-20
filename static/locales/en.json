@@ -230,5 +230,16 @@
   "history.col_duration":   "Duration",
   "history.status_completed": "completed",
   "history.status_cancelled": "cancelled",
-  "history.status_error":     "error"
+  "history.status_error":     "error",
+
+  "settings.notifications":             "Notifications",
+  "settings.notifications_enable":      "Desktop notifications",
+  "settings.notifications_enable_desc": "Show a notification when a download finishes",
+
+  "notif.permission_label":        "Browser permission:",
+  "notif.permission_granted":      "Granted",
+  "notif.permission_denied":       "Denied (check browser settings)",
+  "notif.permission_default":      "Not yet requested",
+  "notif.download_complete":       "Download complete",
+  "notif.download_complete_body":  "{repo} · {count} file(s) downloaded"
 }

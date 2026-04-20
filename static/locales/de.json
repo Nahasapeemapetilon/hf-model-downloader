@@ -230,5 +230,16 @@
   "history.col_duration":   "Dauer",
   "history.status_completed": "abgeschlossen",
   "history.status_cancelled": "abgebrochen",
-  "history.status_error":     "Fehler"
+  "history.status_error":     "Fehler",
+
+  "settings.notifications":             "Benachrichtigungen",
+  "settings.notifications_enable":      "Desktop-Benachrichtigungen",
+  "settings.notifications_enable_desc": "Benachrichtigung anzeigen wenn ein Download abgeschlossen ist",
+
+  "notif.permission_label":        "Browser-Berechtigung:",
+  "notif.permission_granted":      "Erlaubt",
+  "notif.permission_denied":       "Verweigert (Browser-Einstellungen prüfen)",
+  "notif.permission_default":      "Noch nicht angefragt",
+  "notif.download_complete":       "Download abgeschlossen",
+  "notif.download_complete_body":  "{repo} · {count} Datei(en) heruntergeladen"
 }

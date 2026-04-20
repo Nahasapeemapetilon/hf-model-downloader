@@ -229,5 +229,16 @@
   "disk.col_size":                "Tamaño",
 
   "bmc.link":  "☕ Invítame a un café — si HF Downloader te ahorró algo de tiempo",
-  "bmc.short": "☕ Invítame a un café"
+  "bmc.short": "☕ Invítame a un café",
+
+  "settings.notifications":             "Notificaciones",
+  "settings.notifications_enable":      "Notificaciones de escritorio",
+  "settings.notifications_enable_desc": "Mostrar una notificación cuando finalice una descarga",
+
+  "notif.permission_label":        "Permiso del navegador:",
+  "notif.permission_granted":      "Concedido",
+  "notif.permission_denied":       "Denegado (revisar ajustes del navegador)",
+  "notif.permission_default":      "Aún no solicitado",
+  "notif.download_complete":       "Descarga completada",
+  "notif.download_complete_body":  "{repo} · {count} archivo(s) descargado(s)"
 }

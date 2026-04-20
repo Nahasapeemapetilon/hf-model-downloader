@@ -4,6 +4,7 @@ import { updateSchedulerUI } from './scheduler.js';
 import { updateSyncStatusDisplay } from './sync.js';
 import { showToast } from './toast.js';
 import { t } from './i18n.js';
+import { initNotifications } from './notifications.js';
 
 // ── HF Token ─────────────────────────────────────────────────
 
@@ -170,6 +171,7 @@ export function initSettings() {
     });
 
     initHfToken();
+    initNotifications();
 
     let _bwSaveTimer = null;
     const bwSlider = document.getElementById('setting-bandwidth');

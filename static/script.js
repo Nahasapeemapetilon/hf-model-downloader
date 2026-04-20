@@ -21,6 +21,7 @@ import {
 import { initExplore, openExploreWithQuery } from './modules/explore.js';
 import { initDiskSpace, fetchDiskSpace }     from './modules/diskspace.js';
 import { initHistory, refreshHistory }       from './modules/history.js';
+import { notifyDownloadComplete }            from './modules/notifications.js';
 
 // ============================================================
 // i18n — must load before anything renders
@@ -42,9 +43,12 @@ const fileFilterInput        = document.getElementById('file-filter-input');
 const queueListUl            = document.getElementById('download-queue-list');
 const completedListUl        = document.getElementById('completed-list');
 
-let progressTimeout = null;
-let currentRepoId   = '';
-let showHidden      = false;
+let progressTimeout    = null;
+let currentRepoId      = '';
+let showHidden         = false;
+let _lastDownloadRepo  = '';
+let _lastDownloadFiles = 0;
+let _wasDownloading    = false;
 
 // ============================================================
 // POLLING & DOWNLOAD STATUS
@@ -64,6 +68,10 @@ function stopPollingProgress() {
 
     updateStatusPill('idle');
     document.title = 'HF Downloader';
+    if (_wasDownloading) {
+        notifyDownloadComplete(_lastDownloadRepo, _lastDownloadFiles);
+        _wasDownloading = false;
+    }
     updateCompletedList();
     fetchDiskSpace();
     refreshHistory();
@@ -94,6 +102,12 @@ async function updateDownloadProgress() {
         if (status.status === 'downloading' || status.status === 'paused') {
             container.style.display = 'flex';
             container.classList.remove('is-downloading', 'is-paused', 'is-error');
+
+            if (status.status === 'downloading') {
+                _lastDownloadRepo  = status.current_repo_id || '';
+                _lastDownloadFiles = status.total_files || 0;
+                _wasDownloading    = true;
+            }
 
             document.getElementById('current-repo').textContent = status.current_repo_id || '';
             document.getElementById('current-file').textContent = status.current_file || '';

@@ -229,5 +229,16 @@
   "disk.col_size":                "大小",
 
   "bmc.link":  "☕ 请我喝杯咖啡 — 如果 HF Downloader 为您节省了时间",
-  "bmc.short": "☕ 请我喝杯咖啡"
+  "bmc.short": "☕ 请我喝杯咖啡",
+
+  "settings.notifications":             "通知",
+  "settings.notifications_enable":      "桌面通知",
+  "settings.notifications_enable_desc": "下载完成时显示通知",
+
+  "notif.permission_label":        "浏览器权限：",
+  "notif.permission_granted":      "已允许",
+  "notif.permission_denied":       "已拒绝（请检查浏览器设置）",
+  "notif.permission_default":      "尚未请求",
+  "notif.download_complete":       "下载完成",
+  "notif.download_complete_body":  "{repo} · 已下载 {count} 个文件"
 }
