@@ -3,6 +3,7 @@ managers/sync_manager.py — SyncManager
 Prüft periodisch ob heruntergeladene HF-Repos aktualisiert wurden.
 Reiht outdated/neue Dateien in den DownloadManager ein (auto-Modus).
 """
+import copy
 import json
 import logging
 import os
@@ -136,18 +137,16 @@ class SyncManager:
 
     def get_status(self) -> dict:
         with self._lock:
-            outdated = sum(
-                1 for r in self._state.get("repos", {}).values()
-                if r.get("status") == "outdated"
-            )
+            repos = copy.deepcopy(self._state.get("repos", {}))
+            outdated = sum(1 for r in repos.values() if r.get("status") == "outdated")
             return {
                 "status":         "running" if self._running else self._state.get("status", "idle"),
                 "last_run":       self._state.get("last_run"),
                 "next_run":       self._state.get("next_run"),
                 "last_error":     self._state.get("last_error"),
-                "progress":       self._state.get("progress", {"checked": 0, "total": 0}),
+                "progress":       copy.copy(self._state.get("progress", {"checked": 0, "total": 0})),
                 "outdated_count": outdated,
-                "repos":          dict(self._state.get("repos", {})),
+                "repos":          repos,
             }
 
     def start_sync(self, triggered_by: str = "manual") -> bool:

@@ -4,6 +4,15 @@ import { showToast } from './toast.js';
 
 let _loaded = false;
 
+function esc(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function formatBytes(b) {
     if (!b) return '—';
     if (b >= 1e12) return (b / 1e12).toFixed(1) + ' TB';
@@ -38,22 +47,22 @@ function renderList(entries, listEl) {
         return;
     }
     listEl.innerHTML = entries.map(e => `
-        <li class="history-item" data-id="${e.id}">
+        <li class="history-item" data-id="${esc(e.id)}">
             <div class="history-item-main">
-                <span class="history-repo">${e.repo_id}</span>
+                <span class="history-repo">${esc(e.repo_id)}</span>
                 <span class="history-status ${statusClass(e.status)}">${statusLabel(e.status)}</span>
             </div>
             <div class="history-item-meta">
-                <span title="${t('history.col_date')}">${formatDate(e.completed_at)}</span>
+                <span title="${esc(t('history.col_date'))}">${formatDate(e.completed_at)}</span>
                 <span class="history-sep">·</span>
-                <span title="${t('history.col_files')}">${e.file_count} ${t('unit.files')}</span>
+                <span title="${esc(t('history.col_files'))}">${e.file_count} ${t('unit.files')}</span>
                 <span class="history-sep">·</span>
-                <span title="${t('history.col_size')}">${formatBytes(e.bytes_downloaded)}</span>
+                <span title="${esc(t('history.col_size'))}">${formatBytes(e.bytes_downloaded)}</span>
                 <span class="history-sep">·</span>
-                <span title="${t('history.col_duration')}">${formatDuration(e.duration_seconds)}</span>
-                ${e.error_msg ? `<span class="history-error-msg" title="${e.error_msg}">⚠ ${e.error_msg}</span>` : ''}
+                <span title="${esc(t('history.col_duration'))}">${formatDuration(e.duration_seconds)}</span>
+                ${e.error_msg ? `<span class="history-error-msg" title="${esc(e.error_msg)}">⚠ ${esc(e.error_msg)}</span>` : ''}
             </div>
-            <button class="history-delete-btn btn btn-ghost btn-icon" data-id="${e.id}" aria-label="${t('history.delete_entry')}">✕</button>
+            <button class="history-delete-btn btn btn-ghost btn-icon" data-id="${esc(e.id)}" aria-label="${esc(t('history.delete_entry'))}">✕</button>
         </li>`).join('');
 }
 

@@ -42,6 +42,8 @@ export function initNotifications() {
 
     _permissionBadge();
 
+    document.addEventListener('i18n:changed', _permissionBadge);
+
     toggle.addEventListener('change', async () => {
         if (toggle.checked) {
             const perm = await Notification.requestPermission();
