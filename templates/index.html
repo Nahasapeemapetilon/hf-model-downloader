@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body>
 
@@ -28,14 +29,14 @@
     <div class="topbar-right">
         <div id="global-status-pill" class="status-pill status-idle" role="status" aria-live="polite">
             <span class="status-dot"></span>
-            <span class="status-text">Idle</span>
+            <span class="status-text" data-i18n="status.idle">Idle</span>
         </div>
         <span id="sync-indicator" class="sync-indicator" style="display:none;" title="Auto-Sync in progress">
             <span class="sync-indicator-spinner"></span>
             <span id="sync-indicator-text">Sync 0/0</span>
         </span>
         <button class="btn btn-ghost btn-icon" id="settings-btn"
-                aria-label="Settings" title="Settings">
+                aria-label="Settings" title="Settings" data-i18n-aria="nav.settings" data-i18n-title="nav.settings">
             <svg width="18" height="18" viewBox="0 0 24 24"
                  fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
@@ -43,15 +44,31 @@
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
         </button>
+        <!-- Language dropdown -->
+        <div class="lang-dropdown" id="lang-dropdown">
+            <button class="btn btn-ghost lang-toggle" id="lang-toggle"
+                    aria-haspopup="listbox" aria-expanded="false"
+                    aria-label="Switch language">
+                <span id="lang-label">🇬🇧 EN</span>
+                <svg class="lang-chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                    <path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Select language">
+                <li class="lang-option" role="option" data-lang="en">🇬🇧 EN</li>
+                <li class="lang-option" role="option" data-lang="de">🇩🇪 DE</li>
+                <li class="lang-option" role="option" data-lang="fr">🇫🇷 FR</li>
+                <li class="lang-option" role="option" data-lang="es">🇪🇸 ES</li>
+                <li class="lang-option" role="option" data-lang="zh">🇨🇳 中文</li>
+            </ul>
+        </div>
         <button class="btn btn-ghost btn-icon" id="theme-toggle"
                 aria-label="Switch to light theme" title="Toggle light/dark theme">
-            <!-- Moon icon (shown in dark mode) -->
             <svg id="icon-moon" width="18" height="18" viewBox="0 0 24 24"
                  fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
             </svg>
-            <!-- Sun icon (shown in light mode) -->
             <svg id="icon-sun" width="18" height="18" viewBox="0 0 24 24"
                  fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round"
@@ -89,7 +106,7 @@
                     <circle cx="11" cy="11" r="8"/>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
-                <h2>Find Repository</h2>
+                <h2 data-i18n="nav.find_repo">Find Repository</h2>
             </div>
 
             <form id="list-files-form" class="finder-form">
@@ -102,6 +119,7 @@
                     </svg>
                     <input type="text" id="repo-id-input" class="input"
                            placeholder="e.g. meta-llama/Llama-3.2-1B"
+                           data-i18n-placeholder="finder.placeholder"
                            autocomplete="off" spellcheck="false">
                 </div>
 
@@ -122,7 +140,7 @@
                          stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
-                    <span class="btn-label">List Files</span>
+                    <span class="btn-label" data-i18n="finder.list_files">List Files</span>
                     <span class="spinner" id="list-files-spinner" style="display:none;" aria-hidden="true"></span>
                 </button>
             </form>
@@ -159,7 +177,7 @@
                         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
                         <polyline points="17 6 23 6 23 12"/>
                     </svg>
-                    <h2>Explore Models</h2>
+                    <h2 data-i18n="nav.explore_models">Explore Models</h2>
                 </div>
                 <svg class="trending-chevron" width="12" height="12" viewBox="0 0 24 24"
                      fill="none" stroke="currentColor" stroke-width="2.5"
@@ -170,7 +188,6 @@
 
             <div id="trending-content" class="trending-content" style="display:none;">
 
-                <!-- Search input -->
                 <div class="input-group">
                     <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
@@ -179,35 +196,29 @@
                         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                     </svg>
                     <input type="text" id="model-search-input" class="input input-sm"
-                           placeholder="Search by name…" autocomplete="off" spellcheck="false">
+                           placeholder="Search by name…"
+                           data-i18n-placeholder="explore.search_placeholder"
+                           autocomplete="off" spellcheck="false">
                 </div>
 
-                <!-- Tag filter pills -->
                 <div class="tag-filter-row" id="tag-filter-row" role="group" aria-label="Filter by type">
-                    <button class="tag-filter-btn is-active" data-tag="" type="button">All</button>
-                    <button class="tag-filter-btn" data-tag="text-generation" type="button">Text Gen</button>
-                    <button class="tag-filter-btn" data-tag="text-to-image" type="button">Image</button>
-                    <button class="tag-filter-btn" data-tag="automatic-speech-recognition" type="button">ASR</button>
-                    <button class="tag-filter-btn" data-tag="text-to-speech" type="button">TTS</button>
-                    <button class="tag-filter-btn" data-tag="translation" type="button">Translate</button>
-                    <button class="tag-filter-btn" data-tag="feature-extraction" type="button">Embed</button>
-                    <button class="tag-filter-btn" data-tag="image-classification" type="button">Classify</button>
+                    <button class="tag-filter-btn is-active" data-tag="" type="button" data-i18n="explore.filter_all">All</button>
+                    <button class="tag-filter-btn" data-tag="text-generation"            type="button" data-i18n="explore.filter_text_gen">Text Gen</button>
+                    <button class="tag-filter-btn" data-tag="text-to-image"              type="button" data-i18n="explore.filter_image">Image</button>
+                    <button class="tag-filter-btn" data-tag="automatic-speech-recognition" type="button" data-i18n="explore.filter_asr">ASR</button>
+                    <button class="tag-filter-btn" data-tag="text-to-speech"             type="button" data-i18n="explore.filter_tts">TTS</button>
+                    <button class="tag-filter-btn" data-tag="translation"                type="button" data-i18n="explore.filter_translate">Translate</button>
+                    <button class="tag-filter-btn" data-tag="feature-extraction"         type="button" data-i18n="explore.filter_embed">Embed</button>
+                    <button class="tag-filter-btn" data-tag="image-classification"       type="button" data-i18n="explore.filter_classify">Classify</button>
                 </div>
 
-                <!-- Sort controls -->
                 <div class="sort-row" id="sort-row" role="group" aria-label="Sort by">
-                    <button class="sort-btn is-active" data-sort="downloads" type="button">Downloads</button>
-                    <button class="sort-btn" data-sort="likes" type="button">Likes</button>
-                    <button class="sort-btn" data-sort="lastModified" type="button">Recent</button>
+                    <button class="sort-btn is-active" data-sort="downloads"    type="button" data-i18n="explore.sort_downloads">Downloads</button>
+                    <button class="sort-btn" data-sort="likes"                  type="button" data-i18n="explore.sort_likes">Likes</button>
+                    <button class="sort-btn" data-sort="lastModified"           type="button" data-i18n="explore.sort_recent">Recent</button>
                 </div>
 
-                <!-- Results -->
-                <div id="trending-list" class="trending-list" aria-live="polite" aria-label="Model results">
-                    <div class="trending-empty">
-                        <span class="spinner" aria-hidden="true"></span>
-                        Loading…
-                    </div>
-                </div>
+                <div id="trending-list" class="trending-list" aria-live="polite" aria-label="Model results"></div>
 
             </div>
         </section>
@@ -221,7 +232,7 @@
                     <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
                     <polyline points="13 2 13 9 20 9"/>
                 </svg>
-                <h2>Select Files</h2>
+                <h2 data-i18n="nav.select_files">Select Files</h2>
             </div>
 
             <form id="download-selection-form" class="file-selection-form">
@@ -235,16 +246,18 @@
                         <line x1="4" y1="18" x2="18" y2="18"/>
                     </svg>
                     <input type="text" id="file-filter-input" class="input input-sm"
-                           placeholder="Filter files…">
+                           placeholder="Filter files…"
+                           data-i18n-placeholder="files.filter_placeholder">
                 </div>
 
                 <div class="file-controls">
                     <div class="file-controls-left">
-                        <button type="button" id="select-all-btn" class="btn btn-secondary btn-sm">All</button>
-                        <button type="button" id="deselect-all-btn" class="btn btn-ghost btn-sm">None</button>
+                        <button type="button" id="select-all-btn"   class="btn btn-secondary btn-sm" data-i18n="files.select_all">All</button>
+                        <button type="button" id="deselect-all-btn" class="btn btn-ghost btn-sm"     data-i18n="files.select_none">None</button>
                     </div>
                     <div id="selection-summary" class="selection-summary">
-                        <span id="selected-count">0</span> files
+                        <span id="selected-count">0</span>
+                        <span data-i18n="files.label"> files</span>
                         <span class="summary-sep">·</span>
                         <span id="selected-size">0 B</span>
                     </div>
@@ -262,7 +275,7 @@
                             <polyline points="7 10 12 15 17 10"/>
                             <line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
-                        <span class="btn-label">Download Now</span>
+                        <span class="btn-label" data-i18n="files.download_now">Download Now</span>
                         <span id="download-btn-count" class="badge badge-accent" style="display:none;"></span>
                     </button>
                     <button type="button" id="schedule-download-btn"
@@ -273,7 +286,7 @@
                             <circle cx="12" cy="12" r="10"/>
                             <polyline points="12 6 12 12 16 14"/>
                         </svg>
-                        <span class="btn-label">Add to Scheduler</span>
+                        <span class="btn-label" data-i18n="files.add_to_scheduler">Add to Scheduler</span>
                     </button>
                 </div>
 
@@ -319,7 +332,6 @@
                             <span id="file-counter" class="progress-counter">File 0 of 0</span>
                         </div>
                     </div>
-                    <!-- Legacy element — kept for JS compatibility -->
                     <progress id="total-progress" value="0" max="100" class="sr-only" aria-hidden="true"></progress>
                     <div class="download-controls">
                         <button id="pause-btn" class="btn btn-secondary btn-sm" aria-label="Pause Download">
@@ -327,14 +339,14 @@
                                 <rect x="6" y="4" width="4" height="16"/>
                                 <rect x="14" y="4" width="4" height="16"/>
                             </svg>
-                            Pause
+                            <span data-i18n="download.pause">Pause</span>
                         </button>
                         <button id="resume-btn" class="btn btn-secondary btn-sm"
                                 style="display:none;" aria-label="Resume Download">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                 <polygon points="5 3 19 12 5 21 5 3"/>
                             </svg>
-                            Resume
+                            <span data-i18n="download.resume">Resume</span>
                         </button>
                         <button id="to-scheduler-btn" class="btn btn-secondary btn-sm"
                                 style="display:none;" aria-label="Move to Scheduler">
@@ -343,7 +355,7 @@
                                  stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                             </svg>
-                            To Scheduler
+                            <span data-i18n="download.to_scheduler">To Scheduler</span>
                         </button>
                         <button id="cancel-btn" class="btn btn-danger btn-sm" aria-label="Cancel Download">
                             <svg width="14" height="14" viewBox="0 0 24 24"
@@ -352,7 +364,7 @@
                                 <line x1="18" y1="6" x2="6" y2="18"/>
                                 <line x1="6" y1="6" x2="18" y2="18"/>
                             </svg>
-                            Cancel
+                            <span data-i18n="download.cancel">Cancel</span>
                         </button>
                     </div>
                 </div>
@@ -373,7 +385,7 @@
                         <line x1="3" y1="12" x2="3.01" y2="12"/>
                         <line x1="3" y1="18" x2="3.01" y2="18"/>
                     </svg>
-                    <h2>Download Queue</h2>
+                    <h2 data-i18n="queue.title">Download Queue</h2>
                 </div>
                 <span id="queue-count-badge" class="badge badge-neutral">0</span>
             </div>
@@ -385,7 +397,7 @@
                          stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"/>
                     </svg>
-                    <span>No further downloads queued</span>
+                    <span data-i18n="queue.empty">No further downloads queued</span>
                 </div>
             </div>
         </div>
@@ -399,15 +411,16 @@
                          stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                     </svg>
-                    <h2>Downloaded Repos</h2>
+                    <h2 data-i18n="repos.title">Downloaded Repos</h2>
                 </div>
                 <div class="flex items-center gap-3">
                     <div class="repo-filter-group" role="group" aria-label="Filter repositories">
-                        <button class="repo-filter-btn is-active" data-filter="all" type="button">All</button>
-                        <button class="repo-filter-btn" data-filter="hf" type="button">HF only</button>
-                        <button class="repo-filter-btn" data-filter="local" type="button">Local only</button>
+                        <button class="repo-filter-btn is-active" data-filter="all"   type="button" data-i18n="repos.filter_all">All</button>
+                        <button class="repo-filter-btn"           data-filter="hf"    type="button" data-i18n="repos.filter_hf">HF only</button>
+                        <button class="repo-filter-btn"           data-filter="local" type="button" data-i18n="repos.filter_local">Local only</button>
                     </div>
                     <button class="btn btn-ghost btn-icon btn-sm" id="show-hidden-btn"
+                            data-i18n-title="repos.show_hidden"
                             title="Show hidden repos" aria-label="Show hidden repos" aria-pressed="false">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2"
@@ -429,8 +442,8 @@
                          stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                     </svg>
-                    <p>No downloaded repositories yet.</p>
-                    <p class="empty-hint">Use the finder on the left to start your first download.</p>
+                    <p data-i18n="repos.empty">No downloaded repositories yet.</p>
+                    <p class="empty-hint" data-i18n="repos.empty_hint">Use the finder on the left to start your first download.</p>
                 </div>
                 {% endif %}
 
@@ -503,12 +516,36 @@
             </div>
         </section>
 
+        <!-- === Download History === -->
+        <div class="card history-card">
+            <div class="card-header history-header">
+                <button class="history-toggle-btn" id="history-toggle"
+                        aria-expanded="false" aria-controls="history-content" type="button">
+                    <div class="flex items-center gap-2">
+                        <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <h2 data-i18n="history.title">Download History</h2>
+                    </div>
+                    <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="history-clear-btn" type="button"
+                        data-i18n="history.clear_all">Clear all</button>
+            </div>
+            <div id="history-content" style="display:none;">
+                <ul id="history-list" class="history-list"></ul>
+            </div>
+        </div>
+
     </main>
 </div>
 
-<!-- ============================================================
-     TOAST CONTAINER
-     ============================================================ -->
 <!-- ============================================================
      SETTINGS MODAL
      ============================================================ -->
@@ -517,7 +554,7 @@
     <div class="settings-backdrop" id="settings-backdrop"></div>
     <div class="settings-panel">
         <div class="settings-header">
-            <h2>Settings</h2>
+            <h2 data-i18n="settings.title">Settings</h2>
             <button class="btn btn-ghost btn-icon btn-sm" id="settings-close-btn" aria-label="Close settings">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2.5"
@@ -531,23 +568,29 @@
         <!-- Tab bar -->
         <div class="settings-tabs" role="tablist" aria-label="Settings sections">
             <button class="settings-tab is-active" role="tab" data-tab="download"
-                    id="stab-download" aria-controls="spanel-download" aria-selected="true">Download</button>
+                    id="stab-download" aria-controls="spanel-download" aria-selected="true"
+                    data-i18n="settings.tab_download">Download</button>
             <button class="settings-tab" role="tab" data-tab="scheduler"
-                    id="stab-scheduler" aria-controls="spanel-scheduler" aria-selected="false">Scheduler</button>
+                    id="stab-scheduler" aria-controls="spanel-scheduler" aria-selected="false"
+                    data-i18n="settings.tab_scheduler">Scheduler</button>
             <button class="settings-tab" role="tab" data-tab="sync"
-                    id="stab-sync" aria-controls="spanel-sync" aria-selected="false">Auto-Sync</button>
+                    id="stab-sync" aria-controls="spanel-sync" aria-selected="false"
+                    data-i18n="settings.tab_sync">Auto-Sync</button>
+            <button class="settings-tab" role="tab" data-tab="auth"
+                    id="stab-auth" aria-controls="spanel-auth" aria-selected="false"
+                    data-i18n="settings.tab_auth">Auth</button>
         </div>
 
         <div class="settings-body">
 
             <!-- ===== Download Tab ===== -->
             <div class="settings-tab-panel is-active" id="spanel-download" role="tabpanel" aria-labelledby="stab-download">
-                <p class="settings-group-title">Delete Permissions</p>
+                <p class="settings-group-title" data-i18n="settings.delete_perms">Delete Permissions</p>
 
                 <label class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Allow file delete</span>
-                        <span class="settings-row-desc">Show delete button for individual downloaded files</span>
+                        <span class="settings-row-label" data-i18n="settings.allow_file_delete">Allow file delete</span>
+                        <span class="settings-row-desc"  data-i18n="settings.allow_file_delete_desc">Show delete button for individual downloaded files</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="setting-file-delete">
@@ -557,8 +600,8 @@
 
                 <label class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Allow repo delete</span>
-                        <span class="settings-row-desc">Show delete button for HuggingFace repositories</span>
+                        <span class="settings-row-label" data-i18n="settings.allow_repo_delete">Allow repo delete</span>
+                        <span class="settings-row-desc"  data-i18n="settings.allow_repo_delete_desc">Show delete button for HuggingFace repositories</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="setting-repo-delete">
@@ -568,8 +611,8 @@
 
                 <label class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Allow non-HF folder delete</span>
-                        <span class="settings-row-desc">Show delete button for local folders not on HuggingFace</span>
+                        <span class="settings-row-label" data-i18n="settings.allow_nonhf_delete">Allow non-HF folder delete</span>
+                        <span class="settings-row-desc"  data-i18n="settings.allow_nonhf_delete_desc">Show delete button for local folders not on HuggingFace</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="setting-non-hf-delete">
@@ -577,12 +620,12 @@
                     </span>
                 </label>
 
-                <p class="settings-group-title" style="margin-top: var(--space-4);">Speed</p>
+                <p class="settings-group-title" style="margin-top: var(--space-4);" data-i18n="settings.speed">Speed</p>
 
                 <label class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Show speed &amp; ETA</span>
-                        <span class="settings-row-desc">Display download speed (MB/s) and estimated time remaining</span>
+                        <span class="settings-row-label" data-i18n="settings.show_speed_eta">Show speed &amp; ETA</span>
+                        <span class="settings-row-desc"  data-i18n="settings.show_speed_eta_desc">Display download speed (MB/s) and estimated time remaining</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="setting-show-speed" checked>
@@ -592,8 +635,11 @@
 
                 <div class="settings-row settings-row-slider">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Bandwidth limit</span>
-                        <span class="settings-row-desc">Maximum download speed — <span id="bandwidth-display">Unlimited</span></span>
+                        <span class="settings-row-label" data-i18n="settings.bandwidth">Bandwidth limit</span>
+                        <span class="settings-row-desc">
+                            <span data-i18n="settings.bandwidth_desc">Maximum download speed</span>
+                            — <span id="bandwidth-display">Unlimited</span>
+                        </span>
                     </div>
                     <div class="bandwidth-slider-wrap">
                         <input type="range" id="setting-bandwidth"
@@ -601,19 +647,52 @@
                                class="bandwidth-slider">
                     </div>
                 </div>
+
+                <p class="settings-group-title" style="margin-top: var(--space-4);" data-i18n="settings.storage">Storage</p>
+
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="disk.warning_threshold">Low disk space warning</span>
+                        <span class="settings-row-desc"  data-i18n="disk.warning_threshold_desc">Show warning when free space drops below this value</span>
+                    </div>
+                    <div class="disk-threshold-wrap">
+                        <input type="number" id="setting-disk-threshold"
+                               min="1" max="500" step="1" value="5"
+                               class="input input-sm disk-threshold-input">
+                        <span class="disk-threshold-unit">GB</span>
+                    </div>
+                </div>
+
+                <p class="settings-group-title" style="margin-top: var(--space-4);" data-i18n="settings.notifications">Notifications</p>
+
+                <label class="settings-row" id="notifications-setting-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="settings.notifications_enable">Desktop notifications</span>
+                        <span class="settings-row-desc"  data-i18n="settings.notifications_enable_desc">Notify when a download finishes</span>
+                    </div>
+                    <span class="settings-toggle-wrap">
+                        <input type="checkbox" class="settings-toggle-input" id="setting-notifications">
+                        <span class="settings-toggle-slider"></span>
+                    </span>
+                </label>
+
+                <div class="settings-row settings-row--meta">
+                    <span class="settings-row-desc" data-i18n="notif.permission_label">Browser permission:</span>
+                    <span id="notif-permission-status" class="notif-permission-badge"></span>
+                </div>
             </div>
 
             <!-- ===== Scheduler Tab ===== -->
             <div class="settings-tab-panel" id="spanel-scheduler" role="tabpanel" aria-labelledby="stab-scheduler">
                 <div class="scheduler-panel-header">
-                    <p class="settings-group-title" style="margin:0;">Download Window</p>
+                    <p class="settings-group-title" style="margin:0;" data-i18n="scheduler.title">Download Window</p>
                     <span id="scheduler-status-badge" class="badge"></span>
                 </div>
 
                 <label class="settings-row scheduler-toggle-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Enable Scheduler</span>
-                        <span class="settings-row-desc">Restrict downloads to the configured time window</span>
+                        <span class="settings-row-label" data-i18n="scheduler.enable">Enable Scheduler</span>
+                        <span class="settings-row-desc"  data-i18n="scheduler.enable_desc">Restrict downloads to the configured time window</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="scheduler-enabled">
@@ -623,8 +702,8 @@
 
                 <div class="settings-row" style="cursor:default;">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Time window</span>
-                        <span class="settings-row-desc">Downloads run between Start and End</span>
+                        <span class="settings-row-label" data-i18n="scheduler.time_window">Time window</span>
+                        <span class="settings-row-desc"  data-i18n="scheduler.time_window_desc">Downloads run between Start and End</span>
                     </div>
                     <div class="scheduler-time-row">
                         <input type="time" id="scheduler-start" class="input input-sm" value="23:00">
@@ -635,22 +714,23 @@
 
                 <div class="settings-row" style="cursor:default; align-items:flex-start;">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Active days</span>
+                        <span class="settings-row-label" data-i18n="scheduler.active_days">Active days</span>
                     </div>
                     <div class="day-pills">
-                        <label class="day-pill"><input type="checkbox" value="0" checked><span>Mo</span></label>
-                        <label class="day-pill"><input type="checkbox" value="1" checked><span>Tu</span></label>
-                        <label class="day-pill"><input type="checkbox" value="2" checked><span>We</span></label>
-                        <label class="day-pill"><input type="checkbox" value="3" checked><span>Th</span></label>
-                        <label class="day-pill"><input type="checkbox" value="4" checked><span>Fr</span></label>
-                        <label class="day-pill"><input type="checkbox" value="5" checked><span>Sa</span></label>
-                        <label class="day-pill"><input type="checkbox" value="6" checked><span>Su</span></label>
+                        <label class="day-pill"><input type="checkbox" value="0" checked><span data-i18n="scheduler.days.0">Mo</span></label>
+                        <label class="day-pill"><input type="checkbox" value="1" checked><span data-i18n="scheduler.days.1">Tu</span></label>
+                        <label class="day-pill"><input type="checkbox" value="2" checked><span data-i18n="scheduler.days.2">We</span></label>
+                        <label class="day-pill"><input type="checkbox" value="3" checked><span data-i18n="scheduler.days.3">Th</span></label>
+                        <label class="day-pill"><input type="checkbox" value="4" checked><span data-i18n="scheduler.days.4">Fr</span></label>
+                        <label class="day-pill"><input type="checkbox" value="5" checked><span data-i18n="scheduler.days.5">Sa</span></label>
+                        <label class="day-pill"><input type="checkbox" value="6" checked><span data-i18n="scheduler.days.6">Su</span></label>
                     </div>
                 </div>
 
                 <div id="scheduler-next-window" class="scheduler-next-window" style="display:none;"></div>
 
-                <button type="button" id="scheduler-save-btn" class="btn btn-primary btn-full" style="margin-top:var(--space-3);">
+                <button type="button" id="scheduler-save-btn" class="btn btn-primary btn-full"
+                        style="margin-top:var(--space-3);" data-i18n="scheduler.save">
                     Save Schedule
                 </button>
             </div>
@@ -659,8 +739,8 @@
             <div class="settings-tab-panel" id="spanel-sync" role="tabpanel" aria-labelledby="stab-sync">
                 <label class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Enable Auto-Sync</span>
-                        <span class="settings-row-desc">Periodically check downloaded repos for updates on HuggingFace</span>
+                        <span class="settings-row-label" data-i18n="sync.enable">Enable Auto-Sync</span>
+                        <span class="settings-row-desc"  data-i18n="sync.enable_desc">Periodically check downloaded repos for updates on HuggingFace</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="setting-auto-sync-enabled">
@@ -670,34 +750,34 @@
 
                 <div class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Mode</span>
-                        <span class="settings-row-desc">What to do when updates are found</span>
+                        <span class="settings-row-label" data-i18n="sync.mode">Mode</span>
+                        <span class="settings-row-desc"  data-i18n="sync.mode_desc">What to do when updates are found</span>
                     </div>
                     <select class="settings-select" id="setting-sync-mode">
-                        <option value="notify">Notify only</option>
-                        <option value="auto">Auto-download</option>
+                        <option value="notify" data-i18n="sync.mode_notify">Notify only</option>
+                        <option value="auto"   data-i18n="sync.mode_auto">Auto-download</option>
                     </select>
                 </div>
 
                 <div class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Check interval</span>
-                        <span class="settings-row-desc">How often to check for updates</span>
+                        <span class="settings-row-label" data-i18n="sync.interval">Check interval</span>
+                        <span class="settings-row-desc"  data-i18n="sync.interval_desc">How often to check for updates</span>
                     </div>
                     <select class="settings-select" id="setting-sync-interval">
-                        <option value="1">Every hour</option>
-                        <option value="6">Every 6 hours</option>
-                        <option value="12">Every 12 hours</option>
-                        <option value="24">Every 24 hours</option>
-                        <option value="72">Every 3 days</option>
-                        <option value="168">Every 7 days</option>
+                        <option value="1"   data-i18n="sync.interval_1h">Every hour</option>
+                        <option value="6"   data-i18n="sync.interval_6h">Every 6 hours</option>
+                        <option value="12"  data-i18n="sync.interval_12h">Every 12 hours</option>
+                        <option value="24"  data-i18n="sync.interval_24h">Every 24 hours</option>
+                        <option value="72"  data-i18n="sync.interval_3d">Every 3 days</option>
+                        <option value="168" data-i18n="sync.interval_7d">Every 7 days</option>
                     </select>
                 </div>
 
                 <label class="settings-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Only in scheduler window</span>
-                        <span class="settings-row-desc">Run sync only when the scheduler time window is active</span>
+                        <span class="settings-row-label" data-i18n="sync.in_window">Only in scheduler window</span>
+                        <span class="settings-row-desc"  data-i18n="sync.in_window_desc">Run sync only when the scheduler time window is active</span>
                     </div>
                     <span class="settings-toggle-wrap">
                         <input type="checkbox" class="settings-toggle-input" id="setting-sync-in-window" checked>
@@ -707,22 +787,70 @@
 
                 <div class="settings-row settings-sync-status-row">
                     <div class="settings-row-info">
-                        <span class="settings-row-label">Last sync</span>
-                        <span class="settings-row-desc" id="sync-last-run-text">Never</span>
+                        <span class="settings-row-label" data-i18n="sync.last_run">Last sync</span>
+                        <span class="settings-row-desc" id="sync-last-run-text" data-i18n="sync.never">Never</span>
                     </div>
-                    <button class="btn btn-secondary btn-sm" id="setting-sync-run-now" type="button">
+                    <button class="btn btn-secondary btn-sm" id="setting-sync-run-now" type="button"
+                            data-i18n="sync.run_now">
                         Sync now
                     </button>
+                </div>
+            </div>
+
+            <!-- ===== Auth Tab ===== -->
+            <div class="settings-tab-panel" id="spanel-auth" role="tabpanel" aria-labelledby="stab-auth">
+                <p class="settings-group-title" data-i18n="settings.hf_token">HuggingFace API Token</p>
+
+                <div class="settings-row settings-row--col" style="cursor:default;">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="settings.hf_token_label">API Token</span>
+                        <span class="settings-row-desc"  data-i18n="settings.hf_token_desc">For private repos and higher rate limits. Overrides the HF_TOKEN environment variable.</span>
+                    </div>
+                    <div class="hf-token-wrap">
+                        <div class="hf-token-status" id="hf-token-status"></div>
+                        <div class="hf-token-input-row">
+                            <input type="password" id="setting-hf-token"
+                                   class="input input-sm hf-token-input"
+                                   autocomplete="off" spellcheck="false"
+                                   data-i18n-placeholder="settings.hf_token_placeholder">
+                            <button type="button" class="btn btn-ghost btn-icon hf-token-eye" id="hf-token-eye" aria-label="Show/hide token">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="hf-token-actions">
+                            <button type="button" class="btn btn-primary btn-sm" id="hf-token-save" data-i18n="settings.hf_token_save">Save</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="hf-token-clear" style="display:none;" data-i18n="settings.hf_token_clear">Clear saved token</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
         </div>
 
         <div class="settings-footer">
-            <a href="https://buymeacoffee.com/nahasapeemapetilon" target="_blank" rel="noopener noreferrer" class="settings-bmc-link">
+            <a href="https://buymeacoffee.com/nahasapeemapetilon" target="_blank" rel="noopener noreferrer"
+               class="settings-bmc-link" data-i18n="bmc.link">
                 ☕ Buy me a coffee — if HF Downloader saved you some time
             </a>
         </div>
+    </div>
+</div>
+
+<!-- Disk Breakdown Modal -->
+<div id="disk-breakdown-modal" class="settings-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="disk-breakdown-title">
+    <div id="disk-breakdown-backdrop" class="settings-backdrop"></div>
+    <div class="settings-panel disk-breakdown-panel">
+        <div class="settings-header">
+            <h2 class="settings-title" id="disk-breakdown-title" data-i18n="disk.breakdown_title">Storage Breakdown</h2>
+            <div class="disk-breakdown-header-actions">
+                <button class="btn btn-ghost btn-sm" id="disk-breakdown-refresh" type="button" data-i18n="disk.refresh">Refresh</button>
+                <button class="btn btn-ghost btn-icon" id="disk-breakdown-close" type="button" aria-label="Close">✕</button>
+            </div>
+        </div>
+        <div id="disk-breakdown-body" class="disk-breakdown-body"></div>
     </div>
 </div>
 
@@ -733,11 +861,16 @@
     <span class="app-footer-sep">·</span>
     <span class="app-footer-version">{{ app_version }}</span>
     <span class="app-footer-sep">·</span>
-    <a href="https://buymeacoffee.com/nahasapeemapetilon" target="_blank" rel="noopener noreferrer" class="app-footer-bmc">
+    <span id="disk-space-display" class="app-footer-disk">
+        💾 <span id="disk-space-text">—</span>
+    </span>
+    <span class="app-footer-sep">·</span>
+    <a href="https://buymeacoffee.com/nahasapeemapetilon" target="_blank" rel="noopener noreferrer"
+       class="app-footer-bmc" data-i18n="bmc.short">
         ☕ Buy me a coffee
     </a>
 </footer>
 
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
