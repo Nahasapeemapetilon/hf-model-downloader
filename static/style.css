@@ -2412,6 +2412,58 @@ body.allow-file-delete .file-delete-btn:hover                   { opacity: 1; }
     color: var(--text-secondary);
 }
 
+/* HF Token settings */
+.settings-row--col {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+}
+.hf-token-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.hf-token-input-row {
+    display: flex;
+    gap: var(--space-1);
+}
+.hf-token-input {
+    flex: 1;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--text-xs);
+}
+.hf-token-eye {
+    flex-shrink: 0;
+}
+.hf-token-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+.hf-token-status {
+    min-height: 1.25rem;
+}
+.hf-token-badge {
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+}
+.hf-token-badge code {
+    font-family: var(--font-mono, monospace);
+    margin-left: var(--space-1);
+}
+.hf-token-badge--settings {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+.hf-token-badge--env {
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 15%, transparent);
+    color: var(--color-info, #3b82f6);
+}
+.hf-token-badge--none {
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+}
+
 /* ------------------------------------------------------------
    Disk Breakdown Modal
    ------------------------------------------------------------ */

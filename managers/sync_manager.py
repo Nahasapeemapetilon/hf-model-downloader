@@ -18,7 +18,7 @@ try:
 except ImportError:
     from huggingface_hub.utils import RepositoryNotFoundError
 
-from config import HF_TOKEN, SYNC_CONFIG_PATH, SYNC_STATE_PATH
+from config import get_hf_token, SYNC_CONFIG_PATH, SYNC_STATE_PATH
 from utils import get_completed_downloads, safe_repo_path
 
 if TYPE_CHECKING:
@@ -293,7 +293,7 @@ class SyncManager:
 
             logger.info(f"[SYNC] Prüfe {total} Repo(s) | excluded: {len(excluded)}")
 
-            api     = HfApi(token=HF_TOKEN)
+            api     = HfApi(token=get_hf_token())
             checked = 0
 
             def _check(r):

@@ -25,12 +25,30 @@ if not os.path.exists(DATA_DIR):
 logger.info(f"Data-Verzeichnis: {DATA_DIR}")
 
 # --- HuggingFace Token ---
-_hf_token = os.environ.get("HF_TOKEN", "").strip()
-HF_TOKEN = _hf_token if _hf_token else None
+_hf_token_env     = os.environ.get("HF_TOKEN", "").strip() or None
+_hf_token_runtime = None   # overrides env var when set via Settings UI
+
+HF_TOKEN = _hf_token_env   # kept for import-compat; prefer get_hf_token()
 if HF_TOKEN:
-    logger.info("HF_TOKEN gesetzt – private Repos werden unterstützt")
+    logger.info("HF_TOKEN gesetzt (Env) – private Repos werden unterstützt")
 else:
     logger.info("HF_TOKEN nicht gesetzt – nur öffentliche Repos")
+
+
+def get_hf_token() -> str | None:
+    """Returns the active HF token: UI setting takes priority over env var."""
+    return _hf_token_runtime or _hf_token_env
+
+
+def set_hf_token_runtime(token: str | None) -> None:
+    """Set or clear the runtime token (called by settings route on save/delete)."""
+    global _hf_token_runtime, HF_TOKEN
+    _hf_token_runtime = token.strip() if token else None
+    HF_TOKEN = get_hf_token()   # keep module-level var in sync
+    if _hf_token_runtime:
+        logger.info("HF_TOKEN aktualisiert (Settings UI)")
+    else:
+        logger.info(f"HF_TOKEN Runtime gelöscht – aktiv: {'Env' if _hf_token_env else 'keiner'}")
 
 # --- Download constants ---
 CHUNK_SIZE = 8192  # bytes per read chunk

@@ -7,7 +7,7 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-from config import DOWNLOAD_DIR
+from config import DOWNLOAD_DIR, get_hf_token, set_hf_token_runtime, _hf_token_env
 from managers.download_manager import app_settings, _save_settings
 
 logger = logging.getLogger("hf_downloader")
@@ -86,6 +86,51 @@ def set_bandwidth():
         else "[SETTINGS] Bandbreiten-Limit: unbegrenzt"
     )
     return jsonify({"success": True, "bandwidth_limit_mbps": mbps})
+
+
+def _mask_token(token: str) -> str:
+    if len(token) <= 8:
+        return "****"
+    return token[:4] + "****" + token[-4:]
+
+
+@settings_bp.route("/api/settings/hf-token", methods=["GET"])
+def get_hf_token_status():
+    runtime = app_settings.get("hf_token_override")
+    active  = get_hf_token()
+    if runtime:
+        source  = "settings"
+        preview = _mask_token(runtime)
+    elif _hf_token_env:
+        source  = "env"
+        preview = _mask_token(_hf_token_env)
+    else:
+        source  = "none"
+        preview = None
+    return jsonify({"source": source, "preview": preview, "active": bool(active)})
+
+
+@settings_bp.route("/api/settings/hf-token", methods=["POST"])
+def save_hf_token():
+    data  = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "Token must not be empty"}), 400
+    app_settings["hf_token_override"] = token
+    _save_settings(app_settings)
+    set_hf_token_runtime(token)
+    return jsonify({"success": True, "preview": _mask_token(token)})
+
+
+@settings_bp.route("/api/settings/hf-token", methods=["DELETE"])
+def delete_hf_token():
+    app_settings.pop("hf_token_override", None)
+    _save_settings(app_settings)
+    set_hf_token_runtime(None)
+    # Fall back to env var info
+    if _hf_token_env:
+        return jsonify({"success": True, "source": "env", "preview": _mask_token(_hf_token_env)})
+    return jsonify({"success": True, "source": "none", "preview": None})
 
 
 @settings_bp.route("/api/disk-space", methods=["GET"])

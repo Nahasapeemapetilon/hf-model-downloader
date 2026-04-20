@@ -11,6 +11,7 @@ except ImportError:
     from huggingface_hub.utils import RepositoryNotFoundError
 
 import config as cfg
+from config import get_hf_token
 from utils import hf_api_call, safe_repo_path
 
 logger = logging.getLogger("hf_downloader")
@@ -26,7 +27,7 @@ def list_files_route():
         return jsonify({"error": "No repository ID provided"}), 400
     logger.info(f"[API] Dateiliste angefordert: '{repo_id}'")
     try:
-        api       = HfApi(token=cfg.HF_TOKEN)
+        api       = HfApi(token=get_hf_token())
         repo_info = hf_api_call(api.repo_info, repo_id=repo_id,
                                 files_metadata=True, timeout=15)
         files = [
@@ -54,7 +55,7 @@ def repository_status():
         return jsonify({"error": "Invalid repository ID."}), 400
 
     try:
-        api       = HfApi(token=cfg.HF_TOKEN)
+        api       = HfApi(token=get_hf_token())
         repo_info = hf_api_call(api.repo_info, repo_id=repo_id,
                                 files_metadata=True, timeout=15)
         remote = {
@@ -107,7 +108,7 @@ def search_models():
 
     try:
         logger.info(f"[API] Modell-Suche: query='{query}' tag='{pipeline_tag}' sort='{sort}'")
-        api    = HfApi(token=cfg.HF_TOKEN)
+        api    = HfApi(token=get_hf_token())
         kwargs = dict(sort=sort, direction=-1, limit=limit, cardData=False)
         if query:        kwargs["search"]       = query
         if pipeline_tag: kwargs["pipeline_tag"] = pipeline_tag
@@ -132,7 +133,7 @@ def search_models():
 def check_repos_hf():
     data  = request.get_json(silent=True) or {}
     repos = [r for r in data.get("repos", []) if isinstance(r, str)][:50]
-    api   = HfApi(token=cfg.HF_TOKEN or None)
+    api   = HfApi(token=get_hf_token() or None)
 
     def _check(repo_id):
         try:

@@ -13,9 +13,9 @@ import requests
 from huggingface_hub import hf_hub_url
 
 from config import (
-    CHUNK_SIZE, DOWNLOAD_DIR, HF_TOKEN,
+    CHUNK_SIZE, DOWNLOAD_DIR,
     QUEUE_STATE_PATH, SETTINGS_PATH, SCHEDULER_PATH,
-    _NET_RETRY_DELAYS,
+    _NET_RETRY_DELAYS, get_hf_token, set_hf_token_runtime,
 )
 from managers.scheduler import SchedulerConfig
 from utils import fmt_size, safe_repo_path
@@ -48,8 +48,13 @@ def _save_settings(data: dict):
     os.replace(tmp, SETTINGS_PATH)
 
 
-# Module-level settings cache (mutated by the bandwidth endpoint)
+# Module-level settings cache (mutated by the bandwidth/token endpoints)
 app_settings: dict = _load_settings()
+
+# Apply persisted HF token override on startup
+_saved_token = app_settings.get("hf_token_override")
+if _saved_token:
+    set_hf_token_runtime(_saved_token)
 
 
 def get_bandwidth_limit() -> int:
@@ -399,8 +404,9 @@ class DownloadManager:
                             req_headers = {}
                             if existing_size > 0:
                                 req_headers["Range"] = f"bytes={existing_size}-"
-                            if HF_TOKEN:
-                                req_headers["Authorization"] = f"Bearer {HF_TOKEN}"
+                            token = get_hf_token()
+                            if token:
+                                req_headers["Authorization"] = f"Bearer {token}"
 
                             with requests.get(
                                 url, stream=True, timeout=(30, 60), headers=req_headers

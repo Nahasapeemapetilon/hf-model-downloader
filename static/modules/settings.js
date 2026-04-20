@@ -2,7 +2,75 @@ import { fetchJson } from './api.js';
 import { settings, applySettings } from './state.js';
 import { updateSchedulerUI } from './scheduler.js';
 import { updateSyncStatusDisplay } from './sync.js';
+import { showToast } from './toast.js';
 import { t } from './i18n.js';
+
+// ── HF Token ─────────────────────────────────────────────────
+
+function renderTokenStatus(data) {
+    const statusEl  = document.getElementById('hf-token-status');
+    const clearBtn  = document.getElementById('hf-token-clear');
+    if (!statusEl) return;
+
+    if (data.source === 'settings') {
+        statusEl.innerHTML = `<span class="hf-token-badge hf-token-badge--settings">${t('settings.hf_token_from_settings')}: <code>${data.preview}</code></span>`;
+        if (clearBtn) clearBtn.style.display = '';
+    } else if (data.source === 'env') {
+        statusEl.innerHTML = `<span class="hf-token-badge hf-token-badge--env">${t('settings.hf_token_from_env')}: <code>${data.preview}</code></span>`;
+        if (clearBtn) clearBtn.style.display = 'none';
+    } else {
+        statusEl.innerHTML = `<span class="hf-token-badge hf-token-badge--none">${t('settings.hf_token_not_set')}</span>`;
+        if (clearBtn) clearBtn.style.display = 'none';
+    }
+}
+
+async function loadHfTokenStatus() {
+    try {
+        const resp = await fetch('/api/settings/hf-token');
+        if (resp.ok) renderTokenStatus(await resp.json());
+    } catch { /* ignore */ }
+}
+
+function initHfToken() {
+    const input    = document.getElementById('setting-hf-token');
+    const eyeBtn   = document.getElementById('hf-token-eye');
+    const saveBtn  = document.getElementById('hf-token-save');
+    const clearBtn = document.getElementById('hf-token-clear');
+
+    eyeBtn?.addEventListener('click', () => {
+        if (!input) return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+    });
+
+    saveBtn?.addEventListener('click', async () => {
+        const token = input?.value.trim();
+        if (!token) return;
+        try {
+            const resp = await fetchJson('/api/settings/hf-token', {
+                method: 'POST',
+                body:   JSON.stringify({ token }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error);
+            renderTokenStatus({ source: 'settings', preview: data.preview });
+            if (input) input.value = '';
+            showToast('success', t('settings.hf_token_saved'), data.preview);
+        } catch (e) {
+            showToast('error', t('settings.hf_token_error'), e.message);
+        }
+    });
+
+    clearBtn?.addEventListener('click', async () => {
+        try {
+            const resp = await fetchJson('/api/settings/hf-token', { method: 'DELETE' });
+            const data = await resp.json();
+            renderTokenStatus(data);
+            showToast('info', t('settings.hf_token_cleared'), '');
+        } catch { /* ignore */ }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
 
 function updateBandwidthDisplay(mbps) {
     const el = document.getElementById('bandwidth-display');
@@ -24,6 +92,8 @@ export async function openSettings() {
             updateBandwidthDisplay(parseFloat(slider.value));
         }
     } catch { /* ignore */ }
+
+    loadHfTokenStatus();
 
     try {
         const syncResp = await fetch('/api/sync/config');
@@ -98,6 +168,8 @@ export function initSettings() {
             applySettings();
         });
     });
+
+    initHfToken();
 
     let _bwSaveTimer = null;
     const bwSlider = document.getElementById('setting-bandwidth');

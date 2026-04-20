@@ -549,6 +549,9 @@
             <button class="settings-tab" role="tab" data-tab="sync"
                     id="stab-sync" aria-controls="spanel-sync" aria-selected="false"
                     data-i18n="settings.tab_sync">Auto-Sync</button>
+            <button class="settings-tab" role="tab" data-tab="auth"
+                    id="stab-auth" aria-controls="spanel-auth" aria-selected="false"
+                    data-i18n="settings.tab_auth">Auth</button>
         </div>
 
         <div class="settings-body">
@@ -746,6 +749,37 @@
                             data-i18n="sync.run_now">
                         Sync now
                     </button>
+                </div>
+            </div>
+
+            <!-- ===== Auth Tab ===== -->
+            <div class="settings-tab-panel" id="spanel-auth" role="tabpanel" aria-labelledby="stab-auth">
+                <p class="settings-group-title" data-i18n="settings.hf_token">HuggingFace API Token</p>
+
+                <div class="settings-row settings-row--col" style="cursor:default;">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="settings.hf_token_label">API Token</span>
+                        <span class="settings-row-desc"  data-i18n="settings.hf_token_desc">For private repos and higher rate limits. Overrides the HF_TOKEN environment variable.</span>
+                    </div>
+                    <div class="hf-token-wrap">
+                        <div class="hf-token-status" id="hf-token-status"></div>
+                        <div class="hf-token-input-row">
+                            <input type="password" id="setting-hf-token"
+                                   class="input input-sm hf-token-input"
+                                   autocomplete="off" spellcheck="false"
+                                   data-i18n-placeholder="settings.hf_token_placeholder">
+                            <button type="button" class="btn btn-ghost btn-icon hf-token-eye" id="hf-token-eye" aria-label="Show/hide token">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="hf-token-actions">
+                            <button type="button" class="btn btn-primary btn-sm" id="hf-token-save" data-i18n="settings.hf_token_save">Save</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="hf-token-clear" style="display:none;" data-i18n="settings.hf_token_clear">Clear saved token</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
