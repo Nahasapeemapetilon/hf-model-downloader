@@ -80,6 +80,7 @@ function stopPollingProgress() {
 async function updateDownloadProgress() {
     try {
         const response = await fetch('/download-status');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const status   = await response.json();
 
         updateStatusPill(status.status);
@@ -173,8 +174,8 @@ async function updateDownloadProgress() {
         progressTimeout = setTimeout(updateDownloadProgress, nextInterval);
 
     } catch (error) {
-        console.error('Error fetching status:', error);
-        stopPollingProgress();
+        console.warn('Status poll failed, retrying in 10s:', error.message);
+        progressTimeout = setTimeout(updateDownloadProgress, 10000);
     }
 }
 
