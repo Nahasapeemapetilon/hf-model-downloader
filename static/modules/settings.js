@@ -78,6 +78,96 @@ function updateBandwidthDisplay(mbps) {
     if (el) el.textContent = mbps > 0 ? `${mbps.toFixed(1)} MB/s` : t('settings.unlimited');
 }
 
+// ── Webhook ───────────────────────────────────────────────────
+
+async function loadWebhookSettings() {
+    try {
+        const resp = await fetch('/api/settings/webhook');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const urlEl    = document.getElementById('setting-webhook-url');
+        const hintEl   = document.getElementById('webhook-secret-hint');
+        const events   = data.events || ['completed', 'cancelled', 'error'];
+        if (urlEl) urlEl.value = data.url || '';
+        ['completed', 'cancelled', 'error'].forEach(ev => {
+            const cb = document.getElementById(`webhook-event-${ev}`);
+            if (cb) cb.checked = events.includes(ev);
+        });
+        if (hintEl) hintEl.style.display = data.secret_set ? '' : 'none';
+    } catch { /* ignore */ }
+}
+
+function initWebhook() {
+    const saveBtn = document.getElementById('webhook-save-btn');
+    const testBtn = document.getElementById('webhook-test-btn');
+
+    const urlInput = document.getElementById('setting-webhook-url');
+
+    function isValidWebhookUrl(val) {
+        if (!val) return true; // empty = clear, allowed
+        try {
+            const u = new URL(val);
+            return u.protocol === 'http:' || u.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    }
+
+    function setUrlValidity(valid) {
+        if (!urlInput) return;
+        urlInput.classList.toggle('input--error', !valid);
+        if (saveBtn) saveBtn.disabled = !valid;
+        if (testBtn) testBtn.disabled = !valid;
+    }
+
+    urlInput?.addEventListener('input', () => {
+        setUrlValidity(isValidWebhookUrl(urlInput.value.trim()));
+    });
+
+    saveBtn?.addEventListener('click', async () => {
+        const url    = urlInput?.value.trim() || '';
+        if (!isValidWebhookUrl(url)) { setUrlValidity(false); return; }
+        const secret = document.getElementById('setting-webhook-secret')?.value || '';
+        const events = ['completed', 'cancelled', 'error'].filter(ev =>
+            document.getElementById(`webhook-event-${ev}`)?.checked
+        );
+        try {
+            const resp = await fetchJson('/api/settings/webhook', {
+                method: 'POST',
+                body:   JSON.stringify({ url, secret, events }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error);
+            const secretInput = document.getElementById('setting-webhook-secret');
+            if (secretInput) secretInput.value = '';
+            const hintEl = document.getElementById('webhook-secret-hint');
+            if (hintEl) hintEl.style.display = data.secret_set ? '' : 'none';
+            showToast('success', t('settings.webhook_saved'), url || t('settings.webhook_cleared'));
+        } catch (e) {
+            showToast('error', t('settings.webhook_save_error'), e.message);
+        }
+    });
+
+    testBtn?.addEventListener('click', async () => {
+        const url    = urlInput?.value.trim() || '';
+        if (!isValidWebhookUrl(url)) { setUrlValidity(false); return; }
+        const secret = document.getElementById('setting-webhook-secret')?.value || '';
+        try {
+            const resp = await fetchJson('/api/settings/webhook/test', {
+                method: 'POST',
+                body:   JSON.stringify({ url, secret }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error);
+            showToast('info', t('settings.webhook_test_sent'), url);
+        } catch (e) {
+            showToast('error', t('settings.webhook_test_error'), e.message);
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+
 export async function openSettings() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
@@ -95,6 +185,7 @@ export async function openSettings() {
     } catch { /* ignore */ }
 
     loadHfTokenStatus();
+    loadWebhookSettings();
 
     try {
         const syncResp = await fetch('/api/sync/config');
@@ -172,8 +263,10 @@ export function initSettings() {
 
     initHfToken();
     initNotifications();
+    initWebhook();
 
     let _bwSaveTimer = null;
+
     const bwSlider = document.getElementById('setting-bandwidth');
     if (bwSlider) {
         bwSlider.addEventListener('input', () => {

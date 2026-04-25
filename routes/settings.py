@@ -133,6 +133,77 @@ def delete_hf_token():
     return jsonify({"success": True, "source": "none", "preview": None})
 
 
+@settings_bp.route("/api/settings/webhook", methods=["GET"])
+def get_webhook():
+    return jsonify({
+        "url":        app_settings.get("webhook_url", ""),
+        "secret_set": bool(app_settings.get("webhook_secret", "")),
+        "events":     app_settings.get("webhook_events", ["completed", "cancelled", "error"]),
+    })
+
+
+@settings_bp.route("/api/settings/webhook", methods=["POST"])
+def save_webhook():
+    data   = request.get_json(silent=True) or {}
+    url    = (data.get("url") or "").strip()
+    secret = (data.get("secret") or "").strip()
+    events = data.get("events", ["completed", "cancelled", "error"])
+
+    if url and not (url.startswith("http://") or url.startswith("https://")):
+        return jsonify({"error": "URL must start with http:// or https://"}), 400
+    if not isinstance(events, list) or not all(
+        e in ("completed", "cancelled", "error") for e in events
+    ):
+        return jsonify({"error": "Invalid events list"}), 400
+
+    app_settings["webhook_url"]    = url
+    app_settings["webhook_events"] = events
+    if secret:
+        app_settings["webhook_secret"] = secret
+    elif "secret" in data and not secret:
+        app_settings.pop("webhook_secret", None)
+
+    _save_settings(app_settings)
+    logger.info(f"[WEBHOOK] Konfiguration gespeichert: url={url!r} events={events}")
+    return jsonify({"success": True, "secret_set": bool(app_settings.get("webhook_secret", ""))})
+
+
+@settings_bp.route("/api/settings/webhook", methods=["DELETE"])
+def delete_webhook():
+    app_settings.pop("webhook_url", None)
+    app_settings.pop("webhook_secret", None)
+    app_settings.pop("webhook_events", None)
+    _save_settings(app_settings)
+    logger.info("[WEBHOOK] Konfiguration gelöscht")
+    return jsonify({"success": True})
+
+
+@settings_bp.route("/api/settings/webhook/test", methods=["POST"])
+def test_webhook():
+    from utils import send_webhook
+    data   = request.get_json(silent=True) or {}
+    url    = (data.get("url") or app_settings.get("webhook_url", "")).strip()
+    secret = (data.get("secret") or app_settings.get("webhook_secret", "")) or None
+
+    if not url:
+        return jsonify({"error": "No webhook URL configured"}), 400
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return jsonify({"error": "URL must start with http:// or https://"}), 400
+
+    import time
+    payload = {
+        "event":            "download.completed",
+        "repo_id":          "test/webhook",
+        "file_count":       3,
+        "bytes_downloaded": 1073741824,
+        "duration_seconds": 42,
+        "timestamp":        int(time.time()),
+    }
+    send_webhook(url, secret, payload)
+    logger.info(f"[WEBHOOK] Test gesendet an {url}")
+    return jsonify({"success": True})
+
+
 @settings_bp.route("/api/disk-space", methods=["GET"])
 def get_disk_space():
     try:

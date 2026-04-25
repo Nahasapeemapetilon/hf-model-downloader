@@ -18,7 +18,7 @@ from config import (
     _NET_RETRY_DELAYS, get_hf_token, set_hf_token_runtime,
 )
 from managers.scheduler import SchedulerConfig
-from utils import fmt_size, invalidate_completed_cache, safe_repo_path
+from utils import fmt_size, invalidate_completed_cache, safe_repo_path, send_webhook
 
 logger = logging.getLogger("hf_downloader")
 
@@ -95,6 +95,24 @@ app_settings: dict = _load_settings()
 _saved_token = app_settings.get("hf_token_override")
 if _saved_token:
     set_hf_token_runtime(_saved_token)
+
+
+def _fire_webhook(event: str, job) -> None:
+    """Send webhook for a job event if configured. Fire-and-forget."""
+    url    = app_settings.get("webhook_url", "").strip()
+    events = app_settings.get("webhook_events", ["completed", "cancelled", "error"])
+    if not url or event.split(".")[-1] not in events:
+        return
+    secret  = app_settings.get("webhook_secret", "") or None
+    payload = {
+        "event":            event,
+        "repo_id":          job.repo_id,
+        "file_count":       job.total_files,
+        "bytes_downloaded": job.bytes_downloaded,
+        "duration_seconds": int(time.time() - job.started_at) if job.started_at else None,
+        "timestamp":        int(time.time()),
+    }
+    send_webhook(url, secret, payload)
 
 
 def get_bandwidth_limit() -> int:
@@ -595,8 +613,10 @@ class DownloadManager:
                     if job.status == "error" or self._cancel_requested:
                         break
 
+                _rescheduled = False
                 with self._lock:
                     if self._reschedule_current:
+                        _rescheduled             = True
                         self._reschedule_current = False
                         self._cancel_requested   = False
                         job.status               = "queued"
@@ -619,6 +639,9 @@ class DownloadManager:
                     if self.current_job == job:
                         self.current_job = None
                     self._save_queue()
+
+                if not _rescheduled and job.status in ("completed", "cancelled", "error"):
+                    _fire_webhook(f"download.{job.status}", job)
         finally:
             with self._lock:
                 self._worker_running = False

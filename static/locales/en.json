@@ -241,5 +241,23 @@
   "notif.permission_denied":       "Denied (check browser settings)",
   "notif.permission_default":      "Not yet requested",
   "notif.download_complete":       "Download complete",
-  "notif.download_complete_body":  "{repo} · {count} file(s) downloaded"
+  "notif.download_complete_body":  "{repo} · {count} file(s) downloaded",
+
+  "settings.webhook":               "Webhook",
+  "settings.webhook_url":           "Webhook URL",
+  "settings.webhook_url_desc":      "POST request sent on download events",
+  "settings.webhook_secret":        "Secret",
+  "settings.webhook_secret_desc":   "Sent as X-Webhook-Secret header (optional)",
+  "settings.webhook_secret_set":    "A secret is saved. Leave the field empty to keep it.",
+  "settings.webhook_events":        "Trigger on",
+  "settings.webhook_event_completed": "Completed",
+  "settings.webhook_event_cancelled": "Cancelled",
+  "settings.webhook_event_error":     "Error",
+  "settings.webhook_save":          "Save",
+  "settings.webhook_test":          "Test",
+  "settings.webhook_saved":         "Webhook saved",
+  "settings.webhook_cleared":       "Webhook cleared",
+  "settings.webhook_save_error":    "Could not save webhook",
+  "settings.webhook_test_sent":     "Test payload sent",
+  "settings.webhook_test_error":    "Test failed"
 }

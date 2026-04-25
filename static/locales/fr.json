@@ -240,5 +240,23 @@
   "notif.permission_denied":       "Refusée (vérifier les paramètres du navigateur)",
   "notif.permission_default":      "Pas encore demandée",
   "notif.download_complete":       "Téléchargement terminé",
-  "notif.download_complete_body":  "{repo} · {count} fichier(s) téléchargé(s)"
+  "notif.download_complete_body":  "{repo} · {count} fichier(s) téléchargé(s)",
+
+  "settings.webhook":               "Webhook",
+  "settings.webhook_url":           "URL du webhook",
+  "settings.webhook_url_desc":      "Requête POST envoyée lors des événements de téléchargement",
+  "settings.webhook_secret":        "Secret",
+  "settings.webhook_secret_desc":   "Envoyé comme en-tête X-Webhook-Secret (optionnel)",
+  "settings.webhook_secret_set":    "Un secret est enregistré. Laisser le champ vide pour le conserver.",
+  "settings.webhook_events":        "Déclencher sur",
+  "settings.webhook_event_completed": "Terminé",
+  "settings.webhook_event_cancelled": "Annulé",
+  "settings.webhook_event_error":     "Erreur",
+  "settings.webhook_save":          "Enregistrer",
+  "settings.webhook_test":          "Tester",
+  "settings.webhook_saved":         "Webhook enregistré",
+  "settings.webhook_cleared":       "Webhook supprimé",
+  "settings.webhook_save_error":    "Impossible d'enregistrer le webhook",
+  "settings.webhook_test_sent":     "Payload de test envoyé",
+  "settings.webhook_test_error":    "Échec du test"
 }

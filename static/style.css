@@ -513,6 +513,11 @@ a { color: inherit; text-decoration: none; }
     font-size: var(--text-xs);
 }
 
+.input--error {
+    border-color: var(--color-error, #e53e3e) !important;
+    outline-color: var(--color-error, #e53e3e);
+}
+
 .input-group {
     position: relative;
     display: flex;

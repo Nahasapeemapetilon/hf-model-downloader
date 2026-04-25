@@ -240,5 +240,23 @@
   "notif.permission_denied":       "已拒绝（请检查浏览器设置）",
   "notif.permission_default":      "尚未请求",
   "notif.download_complete":       "下载完成",
-  "notif.download_complete_body":  "{repo} · 已下载 {count} 个文件"
+  "notif.download_complete_body":  "{repo} · 已下载 {count} 个文件",
+
+  "settings.webhook":               "Webhook",
+  "settings.webhook_url":           "Webhook URL",
+  "settings.webhook_url_desc":      "下载事件时发送 POST 请求",
+  "settings.webhook_secret":        "密钥",
+  "settings.webhook_secret_desc":   "作为 X-Webhook-Secret 头发送（可选）",
+  "settings.webhook_secret_set":    "已保存密钥，留空以保留现有密钥。",
+  "settings.webhook_events":        "触发时机",
+  "settings.webhook_event_completed": "完成",
+  "settings.webhook_event_cancelled": "取消",
+  "settings.webhook_event_error":     "错误",
+  "settings.webhook_save":          "保存",
+  "settings.webhook_test":          "测试",
+  "settings.webhook_saved":         "Webhook 已保存",
+  "settings.webhook_cleared":       "Webhook 已清除",
+  "settings.webhook_save_error":    "无法保存 Webhook",
+  "settings.webhook_test_sent":     "测试请求已发送",
+  "settings.webhook_test_error":    "测试失败"
 }

@@ -240,5 +240,23 @@
   "notif.permission_denied":       "Denegado (revisar ajustes del navegador)",
   "notif.permission_default":      "Aún no solicitado",
   "notif.download_complete":       "Descarga completada",
-  "notif.download_complete_body":  "{repo} · {count} archivo(s) descargado(s)"
+  "notif.download_complete_body":  "{repo} · {count} archivo(s) descargado(s)",
+
+  "settings.webhook":               "Webhook",
+  "settings.webhook_url":           "URL del webhook",
+  "settings.webhook_url_desc":      "Solicitud POST enviada en eventos de descarga",
+  "settings.webhook_secret":        "Secreto",
+  "settings.webhook_secret_desc":   "Enviado como cabecera X-Webhook-Secret (opcional)",
+  "settings.webhook_secret_set":    "Hay un secreto guardado. Deja el campo vacío para conservarlo.",
+  "settings.webhook_events":        "Activar en",
+  "settings.webhook_event_completed": "Completado",
+  "settings.webhook_event_cancelled": "Cancelado",
+  "settings.webhook_event_error":     "Error",
+  "settings.webhook_save":          "Guardar",
+  "settings.webhook_test":          "Probar",
+  "settings.webhook_saved":         "Webhook guardado",
+  "settings.webhook_cleared":       "Webhook eliminado",
+  "settings.webhook_save_error":    "No se pudo guardar el webhook",
+  "settings.webhook_test_sent":     "Payload de prueba enviado",
+  "settings.webhook_test_error":    "Prueba fallida"
 }

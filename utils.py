@@ -5,6 +5,7 @@ Keine Flask-, Manager- oder Config-Abhängigkeiten (außer config.py).
 import logging
 import os
 import re
+import threading
 import time
 
 import requests
@@ -73,6 +74,20 @@ def hf_api_call(fn, *args, **kwargs):
         except Exception:
             raise
     return fn(*args, **kwargs)
+
+
+def send_webhook(url: str, secret: str | None, payload: dict) -> None:
+    """Fire-and-forget HTTP POST webhook. Runs in a daemon thread, 10s timeout."""
+    def _post():
+        try:
+            headers = {"Content-Type": "application/json"}
+            if secret:
+                headers["X-Webhook-Secret"] = secret
+            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            logger.info(f"[WEBHOOK] {payload.get('event')} → {url} ({r.status_code})")
+        except Exception as e:
+            logger.warning(f"[WEBHOOK] Fehler beim Senden an {url}: {e}")
+    threading.Thread(target=_post, daemon=True).start()
 
 
 _completed_cache: list[str] | None = None
