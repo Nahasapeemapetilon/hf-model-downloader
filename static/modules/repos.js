@@ -230,6 +230,12 @@ export async function refreshRepoStatus(card) {
             statsBar.style.display = 'flex';
         }
 
+        const _statusOrder = { synced: 0, local_only: 1, outdated: 2, not_downloaded: 3 };
+        statusList.sort((a, b) => {
+            const od = (_statusOrder[a.status] ?? 9) - (_statusOrder[b.status] ?? 9);
+            return od !== 0 ? od : a.name.localeCompare(b.name);
+        });
+
         const statusEmojis = { synced: '✅', not_downloaded: '🆕', outdated: '🔄', local_only: '🗑️' };
         let hasDownloadable = false;
 
