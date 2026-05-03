@@ -62,6 +62,7 @@
   "repos.stat_local":      "nur lokal",
   "repos.select_all_local":    "Alle",
   "repos.deselect_all_local":  "Keine",
+  "repos.meta_files":          "Dateien",
   "repos.confirm_delete":      "\"{repo}\" und alle Dateien löschen?\nDies kann nicht rückgängig gemacht werden.",
   "repos.confirm_delete_file": "\"{file}\" löschen?\nSie muss von HuggingFace neu heruntergeladen werden.",
   "repos.hide_success":        "Repo ausgeblendet",

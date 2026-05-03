@@ -78,6 +78,7 @@
   "repos.stat_local":      "local seulement",
   "repos.select_all_local":    "Tout",
   "repos.deselect_all_local":  "Aucun",
+  "repos.meta_files":          "fichiers",
   "repos.confirm_delete":      "Supprimer \"{repo}\" et tous ses fichiers ?\nCette action est irréversible.",
   "repos.confirm_delete_file": "Supprimer \"{file}\" ?\nIl devra être re-téléchargé depuis HuggingFace.",
   "repos.hide_success":        "Dépôt masqué",

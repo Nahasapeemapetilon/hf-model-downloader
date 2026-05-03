@@ -78,6 +78,7 @@
   "repos.stat_local":      "仅本地",
   "repos.select_all_local":    "全选",
   "repos.deselect_all_local":  "取消",
+  "repos.meta_files":          "个文件",
   "repos.confirm_delete":      "删除 \"{repo}\" 及其所有文件？\n此操作无法撤销。",
   "repos.confirm_delete_file": "删除 \"{file}\"？\n需要从 HuggingFace 重新下载。",
   "repos.hide_success":        "仓库已隐藏",

@@ -48,6 +48,7 @@ export function createRepoCard(repo) {
                 <span class="repo-card-name truncate" title="${escapeHtml(repo)}">${escapeHtml(repo)}</span>
                 ${syncBadge}
             </div>
+            <span class="repo-meta" aria-label="File count and size">—</span>
             <div class="repo-card-actions">
                 <button class="btn btn-ghost btn-icon btn-sm update-btn"
                         data-repo="${escapeHtml(repo)}" title="Refresh sync status"
@@ -211,6 +212,12 @@ export async function refreshRepoStatus(card) {
 
         const statusList = await response.json();
         if (skeleton) skeleton.style.display = 'none';
+
+        const metaSpan = card.querySelector('.repo-meta');
+        if (metaSpan) {
+            const totalSize = statusList.reduce((s, f) => s + (f.size || 0), 0);
+            metaSpan.textContent = `${statusList.length} ${t('repos.meta_files')} · ${formatBytes(totalSize)}`;
+        }
 
         confirmedHFRepos.add(repoId);
         if (localOnlyRepos.has(repoId)) {
