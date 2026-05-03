@@ -10,6 +10,8 @@ import {
 let _repoFilter      = localStorage.getItem('repoFilter') || 'all';
 let _completedListUl = null;
 let _startPolling    = null;
+let _completedRepos  = [];
+let _searchTerm      = '';
 
 export function getRepoFilter() { return _repoFilter; }
 export function setRepoFilter(f) { _repoFilter = f; }
@@ -322,11 +324,21 @@ export async function refreshRepoStatus(card) {
 }
 
 export function renderCompletedList(completed) {
-    const visible = _repoFilter === 'hf'
+    _completedRepos = completed;
+
+    const searchWrap = document.getElementById('repo-search-wrap');
+    if (searchWrap) searchWrap.style.display = completed.length > 5 ? '' : 'none';
+
+    let visible = _repoFilter === 'hf'
         ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
         : _repoFilter === 'local'
             ? completed.filter(r => !r.includes('/') || localOnlyRepos.has(r))
             : completed;
+
+    if (_searchTerm) {
+        const term = _searchTerm.toLowerCase();
+        visible = visible.filter(r => r.toLowerCase().includes(term));
+    }
 
     _completedListUl.innerHTML = '';
 
@@ -413,6 +425,14 @@ export async function loadHiddenRepos() {
 export function initRepos(completedListUl, startPollingProgress) {
     _completedListUl = completedListUl;
     _startPolling    = startPollingProgress;
+
+    const searchInput = document.getElementById('repo-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            _searchTerm = searchInput.value.trim();
+            renderCompletedList(_completedRepos);
+        });
+    }
 }
 
 export function getStartPolling() { return _startPolling; }

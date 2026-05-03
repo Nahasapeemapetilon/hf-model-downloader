@@ -1172,6 +1172,11 @@ a { color: inherit; text-decoration: none; }
    ------------------------------------------------------------ */
 .completed-body { padding: 0; }
 
+.repo-search-wrap {
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
 .repo-list { list-style: none; padding: 0; margin: 0; }
 
 .repo-card {
