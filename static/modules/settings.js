@@ -5,6 +5,7 @@ import { updateSyncStatusDisplay } from './sync.js';
 import { showToast } from './toast.js';
 import { t } from './i18n.js';
 import { initNotifications } from './notifications.js';
+import { reRenderOpenCards } from './repos.js';
 
 // ── HF Token ─────────────────────────────────────────────────
 
@@ -246,10 +247,11 @@ export function initSettings() {
     });
 
     [
-        { id: 'setting-file-delete',   key: 'allowFileDelete'  },
-        { id: 'setting-repo-delete',   key: 'allowRepoDelete'  },
-        { id: 'setting-non-hf-delete', key: 'allowNonHFDelete' },
-        { id: 'setting-show-speed',    key: 'showSpeedEta'     },
+        { id: 'setting-file-delete',        key: 'allowFileDelete'    },
+        { id: 'setting-repo-delete',        key: 'allowRepoDelete'    },
+        { id: 'setting-non-hf-delete',      key: 'allowNonHFDelete'   },
+        { id: 'setting-show-speed',         key: 'showSpeedEta'       },
+        { id: 'setting-repo-group-status',  key: 'repoGroupByStatus'  },
     ].forEach(({ id, key }) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -258,6 +260,7 @@ export function initSettings() {
             settings[key] = el.checked;
             localStorage.setItem(id, el.checked);
             applySettings();
+            if (key === 'repoGroupByStatus') reRenderOpenCards();
         });
     });
 

@@ -12,7 +12,8 @@ export const settings = {
     allowFileDelete:  localStorage.getItem('setting-file-delete')   === 'true',
     allowRepoDelete:  localStorage.getItem('setting-repo-delete')   === 'true',
     allowNonHFDelete: localStorage.getItem('setting-non-hf-delete') === 'true',
-    showSpeedEta:     localStorage.getItem('setting-show-speed')    !== 'false',
+    showSpeedEta:       localStorage.getItem('setting-show-speed')      !== 'false',
+    repoGroupByStatus:  localStorage.getItem('setting-repo-group-status') !== 'false',
 };
 
 export function applySettings() {

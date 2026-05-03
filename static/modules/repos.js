@@ -5,6 +5,7 @@ import { t } from './i18n.js';
 import {
     localOnlyRepos, confirmedHFRepos, syncState,
     cachedSyncConfig, setCachedSyncConfig, saveLocalOnlyCache,
+    settings,
 } from './state.js';
 
 let _repoFilter      = localStorage.getItem('repoFilter') || 'all';
@@ -208,6 +209,83 @@ export function createHiddenRepoCard(repo) {
     return li;
 }
 
+const _statusEmojis  = { synced: '✅', not_downloaded: '🆕', outdated: '🔄', local_only: '🗑️' };
+const _statusLabels  = () => ({
+    synced:         t('repos.group_synced'),
+    local_only:     t('repos.group_local_only'),
+    outdated:       t('repos.group_outdated'),
+    not_downloaded: t('repos.group_not_downloaded'),
+});
+
+function _makeFileLi(file, repoId) {
+    const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
+    const canDelete   = file.status === 'synced';
+    const checkboxId  = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const li = document.createElement('li');
+    li.className = 'status-file-item';
+    li.innerHTML = `
+        <span class="status-emoji">${_statusEmojis[file.status] || '❓'}</span>
+        ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
+        <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
+        <span class="file-size">${formatBytes(file.size)}</span>
+        ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="${t('repos.btn_delete_file')}" aria-label="${t('repos.btn_delete_file')}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+        </button>` : ''}
+    `;
+    return li;
+}
+
+function _renderFlat(statusList, fileList, repoId) {
+    statusList.forEach(file => fileList.appendChild(_makeFileLi(file, repoId)));
+}
+
+function _renderGrouped(statusList, fileList, repoId) {
+    const groups   = ['synced', 'local_only', 'outdated', 'not_downloaded'];
+    const labels   = _statusLabels();
+    const grouped  = Object.fromEntries(groups.map(g => [g, []]));
+    statusList.forEach(f => { if (grouped[f.status]) grouped[f.status].push(f); });
+
+    groups.forEach(status => {
+        const files = grouped[status];
+        if (files.length === 0) return;
+
+        const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+        const group = document.createElement('li');
+        group.className = 'file-group';
+        group.innerHTML = `
+            <button class="file-group-header" type="button" aria-expanded="false">
+                <svg class="file-group-chevron" width="12" height="12" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                <span class="file-group-emoji">${_statusEmojis[status] || ''}</span>
+                <span class="file-group-label">${escapeHtml(labels[status] || status)}</span>
+                <span class="file-group-meta">(${files.length}) · ${formatBytes(totalSize)}</span>
+            </button>
+            <ul class="file-group-body"></ul>
+        `;
+
+        const header = group.querySelector('.file-group-header');
+        const body   = group.querySelector('.file-group-body');
+        files.forEach(f => body.appendChild(_makeFileLi(f, repoId)));
+
+        header.addEventListener('click', () => {
+            const open = header.getAttribute('aria-expanded') === 'true';
+            header.setAttribute('aria-expanded', String(!open));
+            body.style.display = open ? 'none' : '';
+        });
+        body.style.display = 'none';
+
+        fileList.appendChild(group);
+    });
+}
+
 export async function refreshRepoStatus(card) {
     const repoId        = card.dataset.repo;
     const body          = card.querySelector('.repo-card-body');
@@ -240,6 +318,7 @@ export async function refreshRepoStatus(card) {
         }
 
         const statusList = await response.json();
+        card._cachedStatusList = statusList;
         if (skeleton) skeleton.style.display = 'none';
 
         const metaSpan = card.querySelector('.repo-meta');
@@ -272,33 +351,15 @@ export async function refreshRepoStatus(card) {
             return od !== 0 ? od : a.name.localeCompare(b.name);
         });
 
-        const statusEmojis = { synced: '✅', not_downloaded: '🆕', outdated: '🔄', local_only: '🗑️' };
-        let hasDownloadable = false;
+        const hasDownloadable = statusList.some(
+            f => f.status === 'not_downloaded' || f.status === 'outdated'
+        );
 
-        statusList.forEach(file => {
-            const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
-            const canDelete   = file.status === 'synced';
-            if (canDownload) hasDownloadable = true;
-
-            const checkboxId = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
-            const li = document.createElement('li');
-            li.className = 'status-file-item';
-            li.innerHTML = `
-                <span class="status-emoji">${statusEmojis[file.status] || '❓'}</span>
-                ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
-                <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
-                <span class="file-size">${formatBytes(file.size)}</span>
-                ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="${t('repos.btn_delete_file')}" aria-label="${t('repos.btn_delete_file')}">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                    </svg>
-                </button>` : ''}
-            `;
-            fileList.appendChild(li);
-        });
+        if (settings.repoGroupByStatus) {
+            _renderGrouped(statusList, fileList, repoId);
+        } else {
+            _renderFlat(statusList, fileList, repoId);
+        }
 
         if (hasDownloadable && localControls && downloadBtn) {
             localControls.style.display = 'flex';
@@ -463,3 +524,19 @@ export function initRepos(completedListUl, startPollingProgress) {
 }
 
 export function getStartPolling() { return _startPolling; }
+
+export function reRenderOpenCards() {
+    if (!_completedListUl) return;
+    _completedListUl.querySelectorAll('.repo-card.is-expanded').forEach(card => {
+        const statusList = card._cachedStatusList;
+        if (!statusList) return;
+        const fileList = card.querySelector('.local-file-list');
+        if (!fileList) return;
+        fileList.innerHTML = '';
+        if (settings.repoGroupByStatus) {
+            _renderGrouped(statusList, fileList, card.dataset.repo);
+        } else {
+            _renderFlat(statusList, fileList, card.dataset.repo);
+        }
+    });
+}
