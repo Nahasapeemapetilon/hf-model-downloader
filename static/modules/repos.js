@@ -68,7 +68,7 @@ export function createRepoCard(repo) {
                     </svg>
                 </button>
                 ${!localOnlyRepos.has(repo) && repo.includes('/') ? `
-                <a class="btn btn-ghost btn-icon btn-sm" href="https://huggingface.co/${encodeURIComponent(repo)}"
+                <a class="btn btn-ghost btn-icon btn-sm" href="https://huggingface.co/${repo}"
                    target="_blank" rel="noopener noreferrer"
                    title="${t('repos.open_hf')}" aria-label="${t('repos.open_hf')}">
                     <svg width="13" height="13" viewBox="0 0 24 24"
