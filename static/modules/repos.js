@@ -80,8 +80,8 @@ export function createRepoCard(repo) {
                     </svg>
                 </a>` : ''}
                 <button class="btn btn-ghost btn-icon btn-sm update-btn"
-                        data-repo="${escapeHtml(repo)}" title="Refresh sync status"
-                        aria-label="Refresh sync status">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_refresh')}"
+                        aria-label="${t('repos.btn_refresh')}">
                     <svg class="refresh-icon" width="13" height="13" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2.5"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -91,8 +91,8 @@ export function createRepoCard(repo) {
                     </svg>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm repo-hide-btn"
-                        data-repo="${escapeHtml(repo)}" title="Hide repo from list"
-                        aria-label="Hide repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_hide')}"
+                        aria-label="${t('repos.btn_hide')}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                          stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -102,8 +102,8 @@ export function createRepoCard(repo) {
                     </svg>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
-                        data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
-                        aria-label="Delete repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_delete')}"
+                        aria-label="${t('repos.btn_delete')}">
                     <svg width="13" height="13" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -182,7 +182,7 @@ export function createHiddenRepoCard(repo) {
             </div>
             <div class="repo-card-actions">
                 <button class="btn btn-ghost btn-icon btn-sm repo-unhide-btn"
-                        data-repo="${escapeHtml(repo)}" title="Unhide repo" aria-label="Unhide repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_unhide')}" aria-label="${t('repos.btn_unhide')}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                          stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -191,8 +191,8 @@ export function createHiddenRepoCard(repo) {
                     </svg>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
-                        data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
-                        aria-label="Delete repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_delete')}"
+                        aria-label="${t('repos.btn_delete')}">
                     <svg width="13" height="13" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -288,7 +288,7 @@ export async function refreshRepoStatus(card) {
                 ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
                 <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
                 <span class="file-size">${formatBytes(file.size)}</span>
-                ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="Delete file" aria-label="Delete ${escapeHtml(file.name)}">
+                ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="${t('repos.btn_delete_file')}" aria-label="${t('repos.btn_delete_file')}">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
