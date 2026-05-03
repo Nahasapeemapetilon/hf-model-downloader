@@ -353,14 +353,14 @@ export async function refreshRepoStatus(card) {
 export function renderCompletedList(completed) {
     _completedRepos = completed;
 
-    const searchWrap = document.getElementById('repo-search-wrap');
-    if (searchWrap) searchWrap.style.display = completed.length > 5 ? '' : 'none';
-
     let visible = _repoFilter === 'hf'
         ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
         : _repoFilter === 'local'
             ? completed.filter(r => !r.includes('/') || localOnlyRepos.has(r))
             : completed;
+
+    const searchWrap = document.getElementById('repo-search-wrap');
+    if (searchWrap) searchWrap.style.display = visible.length > 5 ? '' : 'none';
 
     if (_searchTerm) {
         const term = _searchTerm.toLowerCase();
