@@ -64,6 +64,8 @@
   "repos.deselect_all_local":  "None",
   "repos.meta_files":          "files",
   "repos.search_placeholder":  "Search repos…",
+  "repos.copy_id":             "Copy repo ID",
+  "repos.open_hf":             "Open on HuggingFace",
   "repos.confirm_delete":      "Delete \"{repo}\" and all its files from disk?\nThis cannot be undone.",
   "repos.confirm_delete_file": "Delete \"{file}\"?\nIt will need to be re-downloaded from HuggingFace.",
   "repos.hide_success":        "Repo hidden",

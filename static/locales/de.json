@@ -64,6 +64,8 @@
   "repos.deselect_all_local":  "Keine",
   "repos.meta_files":          "Dateien",
   "repos.search_placeholder":  "Repos durchsuchen…",
+  "repos.copy_id":             "Repo-ID kopieren",
+  "repos.open_hf":             "Auf HuggingFace öffnen",
   "repos.confirm_delete":      "\"{repo}\" und alle Dateien löschen?\nDies kann nicht rückgängig gemacht werden.",
   "repos.confirm_delete_file": "\"{file}\" löschen?\nSie muss von HuggingFace neu heruntergeladen werden.",
   "repos.hide_success":        "Repo ausgeblendet",

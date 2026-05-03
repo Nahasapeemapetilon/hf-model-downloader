@@ -316,7 +316,23 @@ function initCompletedEvents() {
             return;
         }
 
-        if (target.closest('.repo-card-header') && !target.closest('.update-btn')) {
+        if (target.closest('.repo-copy-btn')) {
+            const repoId  = target.closest('.repo-copy-btn').dataset.repo;
+            const copyBtn = target.closest('.repo-copy-btn');
+            const copyIcon  = copyBtn.querySelector('.copy-icon');
+            const checkIcon = copyBtn.querySelector('.copy-check-icon');
+            navigator.clipboard.writeText(repoId).then(() => {
+                if (copyIcon)  copyIcon.style.display  = 'none';
+                if (checkIcon) checkIcon.style.display = '';
+                setTimeout(() => {
+                    if (copyIcon)  copyIcon.style.display  = '';
+                    if (checkIcon) checkIcon.style.display = 'none';
+                }, 1500);
+            });
+            return;
+        }
+
+        if (target.closest('.repo-card-header') && !target.closest('.update-btn') && !target.closest('.repo-copy-btn')) {
             const isExpanded = card.classList.toggle('is-expanded');
             if (isExpanded && !card.dataset.loaded) {
                 card.dataset.loaded = '1';

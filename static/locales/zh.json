@@ -80,6 +80,8 @@
   "repos.deselect_all_local":  "取消",
   "repos.meta_files":          "个文件",
   "repos.search_placeholder":  "搜索仓库…",
+  "repos.copy_id":             "复制仓库 ID",
+  "repos.open_hf":             "在 HuggingFace 上打开",
   "repos.confirm_delete":      "删除 \"{repo}\" 及其所有文件？\n此操作无法撤销。",
   "repos.confirm_delete_file": "删除 \"{file}\"？\n需要从 HuggingFace 重新下载。",
   "repos.hide_success":        "仓库已隐藏",
