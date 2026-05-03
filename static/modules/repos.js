@@ -145,6 +145,14 @@ export function createRepoCard(repo) {
                            autocomplete="off" spellcheck="false"
                            data-i18n-placeholder="repos.file_search_placeholder">
                 </div>
+                <div class="file-sort-btns" role="group">
+                    <button class="btn btn-ghost btn-sm file-sort-btn" data-sort="name" data-dir="asc"
+                            type="button" data-i18n="repos.sort_name">Name</button>
+                    <button class="btn btn-ghost btn-sm file-sort-btn" data-sort="size" data-dir="desc"
+                            type="button" data-i18n="repos.sort_size">Size</button>
+                    <button class="btn btn-ghost btn-sm file-sort-btn" data-sort="reset"
+                            type="button" data-i18n="repos.sort_reset">Reset</button>
+                </div>
             </div>
             <ul class="local-file-list"></ul>
             <div class="local-list-controls" style="display:none;">
@@ -240,7 +248,7 @@ function _makeFileLi(file, repoId) {
         <span class="status-emoji">${_statusEmojis[file.status] || '❓'}</span>
         ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
         <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
-        <span class="file-size">${formatBytes(file.size)}</span>
+        <span class="file-size" data-bytes="${file.size || 0}">${formatBytes(file.size)}</span>
         ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="${t('repos.btn_delete_file')}" aria-label="${t('repos.btn_delete_file')}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"/>
@@ -251,6 +259,34 @@ function _makeFileLi(file, repoId) {
         </button>` : ''}
     `;
     return li;
+}
+
+function _sortItems(items, sort, dir) {
+    return [...items].sort((a, b) => {
+        if (sort === 'name') {
+            const na = a.querySelector('.file-name')?.textContent || '';
+            const nb = b.querySelector('.file-name')?.textContent || '';
+            return dir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+        }
+        if (sort === 'size') {
+            const sa = parseFloat(a.querySelector('.file-size')?.dataset.bytes || 0);
+            const sb = parseFloat(b.querySelector('.file-size')?.dataset.bytes || 0);
+            return dir === 'desc' ? sb - sa : sa - sb;
+        }
+        return 0;
+    });
+}
+
+function _applySortToList(fileList, sort, dir) {
+    if (settings.repoGroupByStatus) {
+        fileList.querySelectorAll('.file-group-body').forEach(body => {
+            const items = [...body.querySelectorAll('.status-file-item')];
+            _sortItems(items, sort, dir).forEach(el => body.appendChild(el));
+        });
+    } else {
+        const items = [...fileList.querySelectorAll('.status-file-item')];
+        _sortItems(items, sort, dir).forEach(el => fileList.appendChild(el));
+    }
 }
 
 function _applyFileFilter(fileList, term) {
@@ -405,8 +441,31 @@ export async function refreshRepoStatus(card) {
         if (searchWrap && searchInput && statusList.length > 5) {
             searchWrap.style.display = '';
             searchInput.addEventListener('input', () => {
-                const term = searchInput.value.trim().toLowerCase();
-                _applyFileFilter(fileList, term);
+                _applyFileFilter(fileList, searchInput.value.trim().toLowerCase());
+            });
+
+            card.querySelectorAll('.file-sort-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const sort = btn.dataset.sort;
+                    if (sort === 'reset') {
+                        card.querySelectorAll('.file-sort-btn').forEach(b => b.classList.remove('is-active'));
+                        card._cachedStatusList && (() => {
+                            fileList.innerHTML = '';
+                            if (settings.repoGroupByStatus) _renderGrouped(card._cachedStatusList, fileList, repoId);
+                            else _renderFlat(card._cachedStatusList, fileList, repoId);
+                            if (searchInput.value.trim()) _applyFileFilter(fileList, searchInput.value.trim().toLowerCase());
+                        })();
+                        return;
+                    }
+                    const wasActive = btn.classList.contains('is-active');
+                    const curDir    = btn.dataset.dir;
+                    const newDir    = wasActive ? (curDir === 'asc' ? 'desc' : 'asc') : curDir;
+                    btn.dataset.dir = newDir;
+                    card.querySelectorAll('.file-sort-btn').forEach(b => b.classList.remove('is-active'));
+                    btn.classList.add('is-active');
+                    btn.textContent = `${btn.getAttribute(`data-i18n`) ? t(btn.getAttribute('data-i18n')) : sort} ${newDir === 'asc' ? '↑' : '↓'}`;
+                    _applySortToList(fileList, sort, newDir);
+                });
             });
         }
 

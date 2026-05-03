@@ -1280,9 +1280,28 @@ a { color: inherit; text-decoration: none; }
 .sync-stat.outdated .sync-stat-count { color: var(--color-outdated); }
 .sync-stat.local    .sync-stat-count { color: var(--color-local); }
 
-/* Local File Search */
+/* Local File Search + Sort */
 .local-file-search-wrap {
     padding: var(--space-2) var(--space-3) var(--space-1);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.local-file-search-wrap .input-group { flex: 1; }
+
+.file-sort-btns {
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+}
+.file-sort-btn {
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    color: var(--text-muted);
+}
+.file-sort-btn.is-active {
+    color: var(--accent-400);
+    background: var(--bg-surface-2);
 }
 
 /* Local File List (inside Repo Card) */
