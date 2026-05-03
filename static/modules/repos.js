@@ -133,6 +133,19 @@ export function createRepoCard(repo) {
                 <div class="skeleton skeleton-row"></div>
                 <div class="skeleton skeleton-row"></div>
             </div>
+            <div class="local-file-search-wrap" style="display:none;">
+                <div class="input-group">
+                    <svg class="input-icon" width="13" height="13" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" class="input input-sm local-file-search"
+                           autocomplete="off" spellcheck="false"
+                           data-i18n-placeholder="repos.file_search_placeholder">
+                </div>
+            </div>
             <ul class="local-file-list"></ul>
             <div class="local-list-controls" style="display:none;">
                 <div class="local-controls-left">
@@ -238,6 +251,26 @@ function _makeFileLi(file, repoId) {
         </button>` : ''}
     `;
     return li;
+}
+
+function _applyFileFilter(fileList, term) {
+    if (settings.repoGroupByStatus) {
+        fileList.querySelectorAll('.file-group').forEach(group => {
+            let visible = 0;
+            group.querySelectorAll('.status-file-item').forEach(li => {
+                const name    = (li.querySelector('.file-name')?.textContent || '').toLowerCase();
+                const matches = !term || name.includes(term);
+                li.style.display = matches ? '' : 'none';
+                if (matches) visible++;
+            });
+            group.style.display = visible === 0 ? 'none' : '';
+        });
+    } else {
+        fileList.querySelectorAll('.status-file-item').forEach(li => {
+            const name = (li.querySelector('.file-name')?.textContent || '').toLowerCase();
+            li.style.display = !term || name.includes(term) ? '' : 'none';
+        });
+    }
 }
 
 function _renderFlat(statusList, fileList, repoId) {
@@ -365,6 +398,16 @@ export async function refreshRepoStatus(card) {
             localControls.style.display = 'flex';
             downloadBtn.style.display   = 'inline-flex';
             if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
+        }
+
+        const searchWrap  = card.querySelector('.local-file-search-wrap');
+        const searchInput = card.querySelector('.local-file-search');
+        if (searchWrap && searchInput && statusList.length > 5) {
+            searchWrap.style.display = '';
+            searchInput.addEventListener('input', () => {
+                const term = searchInput.value.trim().toLowerCase();
+                _applyFileFilter(fileList, term);
+            });
         }
 
         try {
@@ -530,8 +573,10 @@ export function reRenderOpenCards() {
     _completedListUl.querySelectorAll('.repo-card.is-expanded').forEach(card => {
         const statusList = card._cachedStatusList;
         if (!statusList) return;
-        const fileList = card.querySelector('.local-file-list');
+        const fileList    = card.querySelector('.local-file-list');
+        const searchInput = card.querySelector('.local-file-search');
         if (!fileList) return;
+        if (searchInput) searchInput.value = '';
         fileList.innerHTML = '';
         if (settings.repoGroupByStatus) {
             _renderGrouped(statusList, fileList, card.dataset.repo);

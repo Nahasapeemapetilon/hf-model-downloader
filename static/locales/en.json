@@ -71,6 +71,7 @@
   "repos.btn_delete":          "Delete repo and all files",
   "repos.btn_unhide":          "Unhide repo",
   "repos.btn_delete_file":         "Delete file",
+  "repos.file_search_placeholder": "Filter files…",
   "repos.group_synced":            "Downloaded",
   "repos.group_local_only":        "Local only",
   "repos.group_outdated":          "Outdated",

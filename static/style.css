@@ -1280,6 +1280,11 @@ a { color: inherit; text-decoration: none; }
 .sync-stat.outdated .sync-stat-count { color: var(--color-outdated); }
 .sync-stat.local    .sync-stat-count { color: var(--color-local); }
 
+/* Local File Search */
+.local-file-search-wrap {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
 /* Local File List (inside Repo Card) */
 .local-file-list {
     list-style: none;

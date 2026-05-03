@@ -87,6 +87,7 @@
   "repos.btn_delete":          "删除仓库及所有文件",
   "repos.btn_unhide":          "显示仓库",
   "repos.btn_delete_file":         "删除文件",
+  "repos.file_search_placeholder": "筛选文件…",
   "repos.group_synced":            "已下载",
   "repos.group_local_only":        "仅本地",
   "repos.group_outdated":          "已过时",

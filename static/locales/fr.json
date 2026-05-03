@@ -87,6 +87,7 @@
   "repos.btn_delete":          "Supprimer le dépôt et tous les fichiers",
   "repos.btn_unhide":          "Afficher le dépôt",
   "repos.btn_delete_file":         "Supprimer le fichier",
+  "repos.file_search_placeholder": "Filtrer les fichiers…",
   "repos.group_synced":            "Téléchargé",
   "repos.group_local_only":        "Local seulement",
   "repos.group_outdated":          "Obsolète",
