@@ -88,6 +88,7 @@
   "repos.btn_unhide":          "Mostrar repositorio",
   "repos.btn_delete_file":         "Eliminar archivo",
   "repos.file_search_placeholder": "Filtrar archivos…",
+  "repos.download_all_updates":    "Descargar todas las actualizaciones",
   "repos.sort_name":               "Nombre",
   "repos.sort_size":               "Tamaño",
   "repos.sort_reset":              "Reset",

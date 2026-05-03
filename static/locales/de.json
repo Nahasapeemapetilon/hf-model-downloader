@@ -72,6 +72,7 @@
   "repos.btn_unhide":          "Repo einblenden",
   "repos.btn_delete_file":         "Datei löschen",
   "repos.file_search_placeholder": "Dateien filtern…",
+  "repos.download_all_updates":    "Alle Updates laden",
   "repos.sort_name":               "Name",
   "repos.sort_size":               "Größe",
   "repos.sort_reset":              "Reset",

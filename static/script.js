@@ -347,6 +347,12 @@ function initCompletedEvents() {
             return;
         }
 
+        if (target.closest('.download-all-updates-btn')) {
+            fileList.querySelectorAll('.download-update-cb').forEach(cb => { cb.checked = true; });
+            card.querySelector('.download-updates-btn')?.click();
+            return;
+        }
+
         const updateBtn = target.closest('.download-updates-btn') || target.closest('.schedule-updates-btn');
         if (updateBtn) {
             const scheduled      = updateBtn.dataset.scheduled === 'true';

@@ -181,6 +181,18 @@ export function createRepoCard(repo) {
                         </svg>
                         ${t('repos.schedule')}
                     </button>
+                    <button class="btn btn-primary btn-sm download-all-updates-btn"
+                            data-repo="${escapeHtml(repo)}" style="display:none;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.5"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                            <line x1="5" y1="9" x2="19" y2="9"/>
+                        </svg>
+                        ${t('repos.download_all_updates')}
+                    </button>
                 </div>
             </div>
         </div>
@@ -362,16 +374,18 @@ export async function refreshRepoStatus(card) {
     const skeleton      = card.querySelector('.file-skeleton');
     const statsBar      = card.querySelector('.sync-stats-bar');
     const localControls = card.querySelector('.local-list-controls');
-    const downloadBtn   = card.querySelector('.download-updates-btn');
-    const scheduleBtn   = card.querySelector('.schedule-updates-btn');
+    const downloadBtn      = card.querySelector('.download-updates-btn');
+    const scheduleBtn      = card.querySelector('.schedule-updates-btn');
+    const downloadAllBtn   = card.querySelector('.download-all-updates-btn');
     const refreshIcon   = card.querySelector('.refresh-icon');
 
     if (skeleton)    { skeleton.style.display = 'flex'; }
     if (fileList)      fileList.innerHTML = '';
     if (statsBar)      statsBar.style.display = 'none';
     if (localControls) localControls.style.display = 'none';
-    if (downloadBtn)   downloadBtn.style.display = 'none';
-    if (scheduleBtn)   scheduleBtn.style.display = 'none';
+    if (downloadBtn)    downloadBtn.style.display    = 'none';
+    if (scheduleBtn)    scheduleBtn.style.display    = 'none';
+    if (downloadAllBtn) downloadAllBtn.style.display = 'none';
     if (refreshIcon)   refreshIcon.classList.add('is-loading');
 
     try {
@@ -433,7 +447,8 @@ export async function refreshRepoStatus(card) {
         if (hasDownloadable && localControls && downloadBtn) {
             localControls.style.display = 'flex';
             downloadBtn.style.display   = 'inline-flex';
-            if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
+            if (scheduleBtn)    scheduleBtn.style.display    = 'inline-flex';
+            if (downloadAllBtn) downloadAllBtn.style.display = 'inline-flex';
         }
 
         const searchWrap  = card.querySelector('.local-file-search-wrap');
