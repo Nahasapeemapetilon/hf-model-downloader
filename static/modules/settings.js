@@ -247,11 +247,10 @@ export function initSettings() {
     });
 
     [
-        { id: 'setting-file-delete',        key: 'allowFileDelete'    },
-        { id: 'setting-repo-delete',        key: 'allowRepoDelete'    },
-        { id: 'setting-non-hf-delete',      key: 'allowNonHFDelete'   },
-        { id: 'setting-show-speed',         key: 'showSpeedEta'       },
-        { id: 'setting-repo-group-status',  key: 'repoGroupByStatus'  },
+        { id: 'setting-file-delete',   key: 'allowFileDelete'  },
+        { id: 'setting-repo-delete',   key: 'allowRepoDelete'  },
+        { id: 'setting-non-hf-delete', key: 'allowNonHFDelete' },
+        { id: 'setting-show-speed',    key: 'showSpeedEta'     },
     ].forEach(({ id, key }) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -260,9 +259,18 @@ export function initSettings() {
             settings[key] = el.checked;
             localStorage.setItem(id, el.checked);
             applySettings();
-            if (key === 'repoGroupByStatus') reRenderOpenCards();
         });
     });
+
+    const groupModeSelect = document.getElementById('setting-repo-group-mode');
+    if (groupModeSelect) {
+        groupModeSelect.value = settings.repoGroupMode;
+        groupModeSelect.addEventListener('change', () => {
+            settings.repoGroupMode = groupModeSelect.value;
+            localStorage.setItem('setting-repo-group-mode', groupModeSelect.value);
+            reRenderOpenCards();
+        });
+    }
 
     initHfToken();
     initNotifications();

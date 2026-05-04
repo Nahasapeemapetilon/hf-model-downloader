@@ -290,7 +290,7 @@ function _sortItems(items, sort, dir) {
 }
 
 function _applySortToList(fileList, sort, dir) {
-    if (settings.repoGroupByStatus) {
+    if (settings.repoGroupMode === 'status') {
         fileList.querySelectorAll('.file-group-body').forEach(body => {
             const items = [...body.querySelectorAll('.status-file-item')];
             _sortItems(items, sort, dir).forEach(el => body.appendChild(el));
@@ -302,7 +302,7 @@ function _applySortToList(fileList, sort, dir) {
 }
 
 function _applyFileFilter(fileList, term) {
-    if (settings.repoGroupByStatus) {
+    if (settings.repoGroupMode === 'status') {
         fileList.querySelectorAll('.file-group').forEach(group => {
             let visible = 0;
             group.querySelectorAll('.status-file-item').forEach(li => {
@@ -438,7 +438,7 @@ export async function refreshRepoStatus(card) {
             f => f.status === 'not_downloaded' || f.status === 'outdated'
         );
 
-        if (settings.repoGroupByStatus) {
+        if (settings.repoGroupMode === 'status') {
             _renderGrouped(statusList, fileList, repoId);
         } else {
             _renderFlat(statusList, fileList, repoId);
@@ -466,7 +466,7 @@ export async function refreshRepoStatus(card) {
                         card.querySelectorAll('.file-sort-btn').forEach(b => b.classList.remove('is-active'));
                         card._cachedStatusList && (() => {
                             fileList.innerHTML = '';
-                            if (settings.repoGroupByStatus) _renderGrouped(card._cachedStatusList, fileList, repoId);
+                            if (settings.repoGroupMode === 'status') _renderGrouped(card._cachedStatusList, fileList, repoId);
                             else _renderFlat(card._cachedStatusList, fileList, repoId);
                             if (searchInput.value.trim()) _applyFileFilter(fileList, searchInput.value.trim().toLowerCase());
                         })();
@@ -561,6 +561,17 @@ export function renderCompletedList(completed) {
     visible.forEach(repo => {
         _completedListUl.appendChild(createRepoCard(repo));
     });
+
+    const openRepos = new Set(JSON.parse(sessionStorage.getItem('openRepos') || '[]'));
+    if (openRepos.size > 0) {
+        _completedListUl.querySelectorAll('.repo-card').forEach(card => {
+            if (openRepos.has(card.dataset.repo)) {
+                card.classList.add('is-expanded');
+                card.dataset.loaded = '1';
+                refreshRepoStatus(card);
+            }
+        });
+    }
 }
 
 export async function checkReposOnHF(repos) {
@@ -652,7 +663,7 @@ export function reRenderOpenCards() {
         if (!fileList) return;
         if (searchInput) searchInput.value = '';
         fileList.innerHTML = '';
-        if (settings.repoGroupByStatus) {
+        if (settings.repoGroupMode === 'status') {
             _renderGrouped(statusList, fileList, card.dataset.repo);
         } else {
             _renderFlat(statusList, fileList, card.dataset.repo);
