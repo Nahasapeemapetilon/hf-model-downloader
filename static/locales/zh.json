@@ -96,6 +96,13 @@
   "repos.group_local_only":        "仅本地",
   "repos.group_outdated":          "已过时",
   "repos.group_not_downloaded":    "新可用",
+  "repos.group_folder_root":         "根目录",
+  "repos.group_type_weights":        "权重",
+  "repos.group_type_config":         "配置",
+  "repos.group_type_tokenizer":      "Tokenizer",
+  "repos.group_type_media":          "媒体",
+  "repos.group_type_other":          "其他",
+
   "settings.repo_view":              "仓库视图",
   "settings.repo_group_mode":        "文件分组方式",
   "settings.repo_group_mode_desc":   "在展开的仓库卡片中如何分组文件",

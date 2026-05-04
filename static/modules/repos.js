@@ -250,16 +250,17 @@ const _statusLabels  = () => ({
     not_downloaded: t('repos.group_not_downloaded'),
 });
 
-function _makeFileLi(file, repoId) {
+function _makeFileLi(file, repoId, displayName) {
     const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
     const canDelete   = file.status === 'synced';
+    const label       = displayName ?? file.name;
     const checkboxId  = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
     const li = document.createElement('li');
     li.className = 'status-file-item';
     li.innerHTML = `
         <span class="status-emoji">${_statusEmojis[file.status] || '❓'}</span>
         ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
-        <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
+        <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(label)}</label>
         <span class="file-size" data-bytes="${file.size || 0}">${formatBytes(file.size)}</span>
         ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="${t('repos.btn_delete_file')}" aria-label="${t('repos.btn_delete_file')}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -290,7 +291,7 @@ function _sortItems(items, sort, dir) {
 }
 
 function _applySortToList(fileList, sort, dir) {
-    if (settings.repoGroupMode === 'status') {
+    if (settings.repoGroupMode !== 'none') {
         fileList.querySelectorAll('.file-group-body').forEach(body => {
             const items = [...body.querySelectorAll('.status-file-item')];
             _sortItems(items, sort, dir).forEach(el => body.appendChild(el));
@@ -302,7 +303,7 @@ function _applySortToList(fileList, sort, dir) {
 }
 
 function _applyFileFilter(fileList, term) {
-    if (settings.repoGroupMode === 'status') {
+    if (settings.repoGroupMode !== 'none') {
         fileList.querySelectorAll('.file-group').forEach(group => {
             let visible = 0;
             group.querySelectorAll('.status-file-item').forEach(li => {
@@ -325,46 +326,108 @@ function _renderFlat(statusList, fileList, repoId) {
     statusList.forEach(file => fileList.appendChild(_makeFileLi(file, repoId)));
 }
 
-function _renderGrouped(statusList, fileList, repoId) {
-    const groups   = ['synced', 'local_only', 'outdated', 'not_downloaded'];
-    const labels   = _statusLabels();
-    const grouped  = Object.fromEntries(groups.map(g => [g, []]));
-    statusList.forEach(f => { if (grouped[f.status]) grouped[f.status].push(f); });
-
-    groups.forEach(status => {
-        const files = grouped[status];
-        if (files.length === 0) return;
-
-        const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
-        const group = document.createElement('li');
-        group.className = 'file-group';
-        group.innerHTML = `
-            <button class="file-group-header" type="button" aria-expanded="false">
-                <svg class="file-group-chevron" width="12" height="12" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2.5"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
-                <span class="file-group-emoji">${_statusEmojis[status] || ''}</span>
-                <span class="file-group-label">${escapeHtml(labels[status] || status)}</span>
-                <span class="file-group-meta">(${files.length}) · ${formatBytes(totalSize)}</span>
-            </button>
-            <ul class="file-group-body"></ul>
-        `;
-
-        const header = group.querySelector('.file-group-header');
-        const body   = group.querySelector('.file-group-body');
-        files.forEach(f => body.appendChild(_makeFileLi(f, repoId)));
-
-        header.addEventListener('click', () => {
-            const open = header.getAttribute('aria-expanded') === 'true';
-            header.setAttribute('aria-expanded', String(!open));
-            body.style.display = open ? 'none' : '';
-        });
-        body.style.display = 'none';
-
-        fileList.appendChild(group);
+function _buildGroupElement(emoji, label, files, repoId, displayNameFn) {
+    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+    const group = document.createElement('li');
+    group.className = 'file-group';
+    group.innerHTML = `
+        <button class="file-group-header" type="button" aria-expanded="false">
+            <svg class="file-group-chevron" width="12" height="12" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            <span class="file-group-emoji">${emoji}</span>
+            <span class="file-group-label">${escapeHtml(label)}</span>
+            <span class="file-group-meta">(${files.length}) · ${formatBytes(totalSize)}</span>
+        </button>
+        <ul class="file-group-body"></ul>
+    `;
+    const header = group.querySelector('.file-group-header');
+    const body   = group.querySelector('.file-group-body');
+    files.forEach(f => body.appendChild(_makeFileLi(f, repoId, displayNameFn?.(f))));
+    header.addEventListener('click', () => {
+        const open = header.getAttribute('aria-expanded') === 'true';
+        header.setAttribute('aria-expanded', String(!open));
+        body.style.display = open ? 'none' : '';
     });
+    body.style.display = 'none';
+    return group;
+}
+
+function _renderGrouped(statusList, fileList, repoId) {
+    const groups  = ['synced', 'local_only', 'outdated', 'not_downloaded'];
+    const labels  = _statusLabels();
+    const grouped = Object.fromEntries(groups.map(g => [g, []]));
+    statusList.forEach(f => { if (grouped[f.status]) grouped[f.status].push(f); });
+    groups.forEach(status => {
+        if (grouped[status].length === 0) return;
+        fileList.appendChild(_buildGroupElement(
+            _statusEmojis[status] || '', labels[status] || status, grouped[status], repoId,
+        ));
+    });
+}
+
+function _renderGroupedByFolder(statusList, fileList, repoId) {
+    const rootFiles = [];
+    const folderMap = new Map();
+    statusList.forEach(f => {
+        const slash = f.name.indexOf('/');
+        if (slash === -1) {
+            rootFiles.push(f);
+        } else {
+            const folder = f.name.substring(0, slash);
+            if (!folderMap.has(folder)) folderMap.set(folder, []);
+            folderMap.get(folder).push(f);
+        }
+    });
+    rootFiles.forEach(f => fileList.appendChild(_makeFileLi(f, repoId)));
+    [...folderMap.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([folder, files]) => {
+        fileList.appendChild(_buildGroupElement(
+            '📁', `${folder}/`, files, repoId,
+            f => f.name.substring(folder.length + 1),
+        ));
+    });
+}
+
+const _typeGroups = [
+    { key: 'weights',   emoji: '⚖️',  label: () => t('repos.group_type_weights'),   exts: new Set(['.safetensors','.bin','.pt','.pth','.ckpt','.gguf','.ggml','.pkl','.model']) },
+    { key: 'config',    emoji: '⚙️',  label: () => t('repos.group_type_config'),    exts: new Set(['.json','.yaml','.yml','.toml','.ini','.cfg','.txt','.md']) },
+    { key: 'tokenizer', emoji: '📝',  label: () => t('repos.group_type_tokenizer'), exts: null },
+    { key: 'media',     emoji: '🖼️', label: () => t('repos.group_type_media'),     exts: new Set(['.png','.jpg','.jpeg','.gif','.svg','.mp4','.wav','.mp3','.flac','.ogg']) },
+    { key: 'other',     emoji: '📄',  label: () => t('repos.group_type_other'),     exts: null },
+];
+const _tokenizerRe = /tokenizer|vocab|merges\.txt|special_tokens|sentencepiece|\.spm$/i;
+
+function _getFileTypeKey(name) {
+    const base = name.split('/').pop();
+    const ext  = base.includes('.') ? ('.' + base.split('.').pop()).toLowerCase() : '';
+    if (_tokenizerRe.test(base)) return 'tokenizer';
+    for (const g of _typeGroups) {
+        if (g.exts?.has(ext)) return g.key;
+    }
+    return 'other';
+}
+
+function _renderGroupedByType(statusList, fileList, repoId) {
+    const buckets = Object.fromEntries(_typeGroups.map(g => [g.key, []]));
+    statusList.forEach(f => buckets[_getFileTypeKey(f.name)].push(f));
+    _typeGroups.forEach(({ key, emoji, label }) => {
+        if (buckets[key].length === 0) return;
+        fileList.appendChild(_buildGroupElement(emoji, label(), buckets[key], repoId));
+    });
+}
+
+function _renderByMode(statusList, fileList, repoId) {
+    if (settings.repoGroupMode === 'status') {
+        _renderGrouped(statusList, fileList, repoId);
+    } else if (settings.repoGroupMode === 'folder') {
+        _renderGroupedByFolder(statusList, fileList, repoId);
+    } else if (settings.repoGroupMode === 'type') {
+        _renderGroupedByType(statusList, fileList, repoId);
+    } else {
+        _renderFlat(statusList, fileList, repoId);
+    }
 }
 
 export async function refreshRepoStatus(card) {
@@ -438,11 +501,7 @@ export async function refreshRepoStatus(card) {
             f => f.status === 'not_downloaded' || f.status === 'outdated'
         );
 
-        if (settings.repoGroupMode === 'status') {
-            _renderGrouped(statusList, fileList, repoId);
-        } else {
-            _renderFlat(statusList, fileList, repoId);
-        }
+        _renderByMode(statusList, fileList, repoId);
 
         if (hasDownloadable && localControls && downloadBtn) {
             localControls.style.display = 'flex';
@@ -466,8 +525,7 @@ export async function refreshRepoStatus(card) {
                         card.querySelectorAll('.file-sort-btn').forEach(b => b.classList.remove('is-active'));
                         card._cachedStatusList && (() => {
                             fileList.innerHTML = '';
-                            if (settings.repoGroupMode === 'status') _renderGrouped(card._cachedStatusList, fileList, repoId);
-                            else _renderFlat(card._cachedStatusList, fileList, repoId);
+                            _renderByMode(card._cachedStatusList, fileList, repoId);
                             if (searchInput.value.trim()) _applyFileFilter(fileList, searchInput.value.trim().toLowerCase());
                         })();
                         return;
@@ -663,10 +721,6 @@ export function reRenderOpenCards() {
         if (!fileList) return;
         if (searchInput) searchInput.value = '';
         fileList.innerHTML = '';
-        if (settings.repoGroupMode === 'status') {
-            _renderGrouped(statusList, fileList, card.dataset.repo);
-        } else {
-            _renderFlat(statusList, fileList, card.dataset.repo);
-        }
+        _renderByMode(statusList, fileList, card.dataset.repo);
     });
 }

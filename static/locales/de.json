@@ -80,6 +80,13 @@
   "repos.group_local_only":        "Nur lokal",
   "repos.group_outdated":          "Veraltet",
   "repos.group_not_downloaded":    "Neu verfügbar",
+  "repos.group_folder_root":         "Stammverzeichnis",
+  "repos.group_type_weights":        "Gewichte",
+  "repos.group_type_config":         "Konfiguration",
+  "repos.group_type_tokenizer":      "Tokenizer",
+  "repos.group_type_media":          "Medien",
+  "repos.group_type_other":          "Sonstige",
+
   "settings.repo_view":              "Repos-Ansicht",
   "settings.repo_group_mode":        "Dateien gruppieren nach",
   "settings.repo_group_mode_desc":   "Wie Dateien in geöffneten Repo-Karten gruppiert werden",

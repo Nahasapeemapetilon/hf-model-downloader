@@ -96,6 +96,13 @@
   "repos.group_local_only":        "Solo local",
   "repos.group_outdated":          "Desactualizado",
   "repos.group_not_downloaded":    "Nuevo disponible",
+  "repos.group_folder_root":         "Raíz",
+  "repos.group_type_weights":        "Pesos",
+  "repos.group_type_config":         "Config",
+  "repos.group_type_tokenizer":      "Tokenizer",
+  "repos.group_type_media":          "Medios",
+  "repos.group_type_other":          "Otros",
+
   "settings.repo_view":              "Vista de repositorios",
   "settings.repo_group_mode":        "Agrupar archivos por",
   "settings.repo_group_mode_desc":   "Cómo agrupar los archivos en una tarjeta de repositorio abierta",

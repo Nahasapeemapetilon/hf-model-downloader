@@ -80,6 +80,13 @@
   "repos.group_local_only":        "Local only",
   "repos.group_outdated":          "Outdated",
   "repos.group_not_downloaded":    "New available",
+  "repos.group_folder_root":         "Root",
+  "repos.group_type_weights":        "Weights",
+  "repos.group_type_config":         "Config",
+  "repos.group_type_tokenizer":      "Tokenizer",
+  "repos.group_type_media":          "Media",
+  "repos.group_type_other":          "Other",
+
   "settings.repo_view":              "Repos View",
   "settings.repo_group_mode":        "Group files by",
   "settings.repo_group_mode_desc":   "How to group files inside an expanded repo card",

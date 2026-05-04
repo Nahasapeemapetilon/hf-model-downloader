@@ -96,6 +96,13 @@
   "repos.group_local_only":        "Local seulement",
   "repos.group_outdated":          "Obsolète",
   "repos.group_not_downloaded":    "Nouveau disponible",
+  "repos.group_folder_root":         "Racine",
+  "repos.group_type_weights":        "Poids",
+  "repos.group_type_config":         "Config",
+  "repos.group_type_tokenizer":      "Tokenizer",
+  "repos.group_type_media":          "Médias",
+  "repos.group_type_other":          "Autres",
+
   "settings.repo_view":              "Vue des dépôts",
   "settings.repo_group_mode":        "Grouper les fichiers par",
   "settings.repo_group_mode_desc":   "Comment grouper les fichiers dans une carte de dépôt ouverte",
