@@ -242,6 +242,19 @@ export function createHiddenRepoCard(repo) {
     return li;
 }
 
+function _loadCardState(repoId) {
+    try { return JSON.parse(sessionStorage.getItem('repoCardStates') || '{}')[repoId] || {}; }
+    catch { return {}; }
+}
+
+function _saveCardState(repoId, patch) {
+    try {
+        const all = JSON.parse(sessionStorage.getItem('repoCardStates') || '{}');
+        all[repoId] = { ...(all[repoId] || {}), ...patch };
+        sessionStorage.setItem('repoCardStates', JSON.stringify(all));
+    } catch {}
+}
+
 const _statusEmojis  = { synced: '✅', not_downloaded: '🆕', outdated: '🔄', local_only: '🗑️' };
 const _statusLabels  = () => ({
     synced:         t('repos.group_synced'),
@@ -326,10 +339,11 @@ function _renderFlat(statusList, fileList, repoId) {
     statusList.forEach(file => fileList.appendChild(_makeFileLi(file, repoId)));
 }
 
-function _buildGroupElement(emoji, label, files, repoId, displayNameFn) {
+function _buildGroupElement(emoji, label, files, repoId, groupKey, displayNameFn) {
     const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
     const group = document.createElement('li');
     group.className = 'file-group';
+    group.dataset.groupKey = groupKey;
     group.innerHTML = `
         <button class="file-group-header" type="button" aria-expanded="false">
             <svg class="file-group-chevron" width="12" height="12" viewBox="0 0 24 24"
@@ -350,6 +364,10 @@ function _buildGroupElement(emoji, label, files, repoId, displayNameFn) {
         const open = header.getAttribute('aria-expanded') === 'true';
         header.setAttribute('aria-expanded', String(!open));
         body.style.display = open ? 'none' : '';
+        const expandedGroups = [...group.parentElement.querySelectorAll('.file-group[data-group-key]')]
+            .filter(g => g.querySelector('.file-group-header')?.getAttribute('aria-expanded') === 'true')
+            .map(g => g.dataset.groupKey);
+        _saveCardState(repoId, { expandedGroups });
     });
     body.style.display = 'none';
     return group;
@@ -363,7 +381,7 @@ function _renderGrouped(statusList, fileList, repoId) {
     groups.forEach(status => {
         if (grouped[status].length === 0) return;
         fileList.appendChild(_buildGroupElement(
-            _statusEmojis[status] || '', labels[status] || status, grouped[status], repoId,
+            _statusEmojis[status] || '', labels[status] || status, grouped[status], repoId, status,
         ));
     });
 }
@@ -384,7 +402,7 @@ function _renderGroupedByFolder(statusList, fileList, repoId) {
     rootFiles.forEach(f => fileList.appendChild(_makeFileLi(f, repoId)));
     [...folderMap.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([folder, files]) => {
         fileList.appendChild(_buildGroupElement(
-            '📁', `${folder}/`, files, repoId,
+            '📁', `${folder}/`, files, repoId, folder,
             f => f.name.substring(folder.length + 1),
         ));
     });
@@ -414,7 +432,7 @@ function _renderGroupedByType(statusList, fileList, repoId) {
     statusList.forEach(f => buckets[_getFileTypeKey(f.name)].push(f));
     _typeGroups.forEach(({ key, emoji, label }) => {
         if (buckets[key].length === 0) return;
-        fileList.appendChild(_buildGroupElement(emoji, label(), buckets[key], repoId));
+        fileList.appendChild(_buildGroupElement(emoji, label(), buckets[key], repoId, key));
     });
 }
 
@@ -503,6 +521,18 @@ export async function refreshRepoStatus(card) {
 
         _renderByMode(statusList, fileList, repoId);
 
+        // Restore expanded group state
+        const _saved = _loadCardState(repoId);
+        if (_saved.expandedGroups?.length > 0) {
+            fileList.querySelectorAll('.file-group[data-group-key]').forEach(groupEl => {
+                if (_saved.expandedGroups.includes(groupEl.dataset.groupKey)) {
+                    const h = groupEl.querySelector('.file-group-header');
+                    const b = groupEl.querySelector('.file-group-body');
+                    if (h && b) { h.setAttribute('aria-expanded', 'true'); b.style.display = ''; }
+                }
+            });
+        }
+
         if (hasDownloadable && localControls && downloadBtn) {
             localControls.style.display = 'flex';
             downloadBtn.style.display   = 'inline-flex';
@@ -514,8 +544,14 @@ export async function refreshRepoStatus(card) {
         const searchInput = card.querySelector('.local-file-search');
         if (searchWrap && searchInput && statusList.length > 5) {
             searchWrap.style.display = '';
+            if (_saved.search) {
+                searchInput.value = _saved.search;
+                _applyFileFilter(fileList, _saved.search.toLowerCase());
+            }
             searchInput.addEventListener('input', () => {
-                _applyFileFilter(fileList, searchInput.value.trim().toLowerCase());
+                const term = searchInput.value.trim();
+                _applyFileFilter(fileList, term.toLowerCase());
+                _saveCardState(repoId, { search: term });
             });
 
             card.querySelectorAll('.file-sort-btn').forEach(btn => {
