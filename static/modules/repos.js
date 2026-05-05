@@ -796,6 +796,16 @@ export function initRepos(completedListUl, startPollingProgress) {
             renderCompletedList(_completedRepos);
         });
     }
+
+    const groupMode = document.getElementById('repo-group-mode');
+    if (groupMode) {
+        groupMode.value = settings.repoGroupMode;
+        groupMode.addEventListener('change', () => {
+            settings.repoGroupMode = groupMode.value;
+            localStorage.setItem('setting-repo-group-mode', groupMode.value);
+            reRenderOpenCards();
+        });
+    }
 }
 
 export function getStartPolling() { return _startPolling; }
