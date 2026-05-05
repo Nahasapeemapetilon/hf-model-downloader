@@ -14,6 +14,8 @@ let _startPolling    = null;
 let _completedRepos  = [];
 let _searchTerm      = '';
 let _repoMeta        = new Map();
+let _sortField       = localStorage.getItem('repoSortField') || 'name';
+let _sortDir         = localStorage.getItem('repoSortDir')   || 'asc';
 
 export function getRepoFilter() { return _repoFilter; }
 export function setRepoFilter(f) { _repoFilter = f; }
@@ -21,6 +23,16 @@ export function setRepoFilter(f) { _repoFilter = f; }
 export function repoTypeClass(repo) {
     if (localOnlyRepos.has(repo) || !repo.includes('/')) return 'is-local-repo';
     return 'is-hf-repo';
+}
+
+function _applySort(completed) {
+    return [...completed].sort((a, b) => {
+        let cmp = 0;
+        if (_sortField === 'name') cmp = a.id.localeCompare(b.id);
+        if (_sortField === 'size') cmp = (a.total_size || 0) - (b.total_size || 0);
+        if (_sortField === 'date') cmp = (a.completed_at || 0) - (b.completed_at || 0);
+        return _sortDir === 'asc' ? cmp : -cmp;
+    });
 }
 
 function _formatRepoMeta(meta) {
@@ -639,9 +651,10 @@ export async function refreshRepoStatus(card) {
 export function renderCompletedList(completed) {
     _completedRepos = completed;
 
-    // Populate meta map from enriched /completed response
-    completed.forEach(r => _repoMeta.set(r.id, r));
-    const ids = completed.map(r => r.id);
+    // Sort, then populate meta map
+    const sorted = _applySort(completed);
+    sorted.forEach(r => _repoMeta.set(r.id, r));
+    const ids = sorted.map(r => r.id);
 
     let visible = _repoFilter === 'hf'
         ? ids.filter(id => id.includes('/') && !localOnlyRepos.has(id))
@@ -650,7 +663,7 @@ export function renderCompletedList(completed) {
             : ids;
 
     const searchWrap = document.getElementById('repo-search-wrap');
-    if (searchWrap) searchWrap.style.display = visible.length > 5 ? '' : 'none';
+    if (searchWrap) searchWrap.style.display = completed.length > 0 ? '' : 'none';
 
     if (_searchTerm) {
         const term = _searchTerm.toLowerCase();
@@ -758,6 +771,28 @@ export function initRepos(completedListUl, startPollingProgress) {
     if (searchInput) {
         searchInput.addEventListener('input', () => {
             _searchTerm = searchInput.value.trim();
+            renderCompletedList(_completedRepos);
+        });
+    }
+
+    const sortField = document.getElementById('repo-sort-field');
+    const sortDir   = document.getElementById('repo-sort-dir');
+
+    if (sortField) {
+        sortField.value = _sortField;
+        sortField.addEventListener('change', () => {
+            _sortField = sortField.value;
+            localStorage.setItem('repoSortField', _sortField);
+            renderCompletedList(_completedRepos);
+        });
+    }
+
+    if (sortDir) {
+        sortDir.textContent = _sortDir === 'asc' ? '↑' : '↓';
+        sortDir.addEventListener('click', () => {
+            _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+            localStorage.setItem('repoSortDir', _sortDir);
+            sortDir.textContent = _sortDir === 'asc' ? '↑' : '↓';
             renderCompletedList(_completedRepos);
         });
     }

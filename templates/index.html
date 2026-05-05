@@ -448,7 +448,7 @@
                 {% endif %}
 
                 <div id="repo-search-wrap" class="repo-search-wrap" style="display:none;">
-                    <div class="input-group">
+                    <div class="input-group" style="flex:1;min-width:0;">
                         <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24"
                              fill="none" stroke="currentColor" stroke-width="2"
                              stroke-linecap="round" stroke-linejoin="round">
@@ -458,6 +458,16 @@
                         <input type="text" id="repo-search-input" class="input input-sm"
                                autocomplete="off" spellcheck="false"
                                data-i18n-placeholder="repos.search_placeholder">
+                    </div>
+                    <div class="repo-sort-controls">
+                        <select id="repo-sort-field" class="repo-sort-select"
+                                aria-label="Sort repositories by">
+                            <option value="name" data-i18n="repos.repo_sort_name">Name</option>
+                            <option value="size" data-i18n="repos.repo_sort_size">Size</option>
+                            <option value="date" data-i18n="repos.repo_sort_date">Date</option>
+                        </select>
+                        <button id="repo-sort-dir" class="btn btn-ghost btn-icon btn-sm"
+                                title="Toggle sort direction" aria-label="Toggle sort direction">↑</button>
                     </div>
                 </div>
 
