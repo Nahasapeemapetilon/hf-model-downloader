@@ -50,6 +50,12 @@ let _lastDownloadRepo  = '';
 let _lastDownloadFiles = 0;
 let _wasDownloading    = false;
 
+function _saveOpenRepos() {
+    const ids = [...completedListUl.querySelectorAll('.repo-card.is-expanded')]
+        .map(c => c.dataset.repo);
+    sessionStorage.setItem('openRepos', JSON.stringify(ids));
+}
+
 // ============================================================
 // POLLING & DOWNLOAD STATUS
 // ============================================================
@@ -316,8 +322,25 @@ function initCompletedEvents() {
             return;
         }
 
-        if (target.closest('.repo-card-header') && !target.closest('.update-btn')) {
+        if (target.closest('.repo-copy-btn')) {
+            const repoId  = target.closest('.repo-copy-btn').dataset.repo;
+            const copyBtn = target.closest('.repo-copy-btn');
+            const copyIcon  = copyBtn.querySelector('.copy-icon');
+            const checkIcon = copyBtn.querySelector('.copy-check-icon');
+            navigator.clipboard.writeText(repoId).then(() => {
+                if (copyIcon)  copyIcon.style.display  = 'none';
+                if (checkIcon) checkIcon.style.display = '';
+                setTimeout(() => {
+                    if (copyIcon)  copyIcon.style.display  = '';
+                    if (checkIcon) checkIcon.style.display = 'none';
+                }, 1500);
+            });
+            return;
+        }
+
+        if (target.closest('.repo-card-header') && !target.closest('.update-btn') && !target.closest('.repo-copy-btn')) {
             const isExpanded = card.classList.toggle('is-expanded');
+            _saveOpenRepos();
             if (isExpanded && !card.dataset.loaded) {
                 card.dataset.loaded = '1';
                 await refreshRepoStatus(card);
@@ -327,7 +350,14 @@ function initCompletedEvents() {
 
         if (target.closest('.update-btn')) {
             card.classList.add('is-expanded');
+            _saveOpenRepos();
             await refreshRepoStatus(card);
+            return;
+        }
+
+        if (target.closest('.download-all-updates-btn')) {
+            fileList.querySelectorAll('.download-update-cb').forEach(cb => { cb.checked = true; });
+            card.querySelector('.download-updates-btn')?.click();
             return;
         }
 

@@ -5,11 +5,14 @@ import { t } from './i18n.js';
 import {
     localOnlyRepos, confirmedHFRepos, syncState,
     cachedSyncConfig, setCachedSyncConfig, saveLocalOnlyCache,
+    settings,
 } from './state.js';
 
 let _repoFilter      = localStorage.getItem('repoFilter') || 'all';
 let _completedListUl = null;
 let _startPolling    = null;
+let _completedRepos  = [];
+let _searchTerm      = '';
 
 export function getRepoFilter() { return _repoFilter; }
 export function setRepoFilter(f) { _repoFilter = f; }
@@ -48,10 +51,38 @@ export function createRepoCard(repo) {
                 <span class="repo-card-name truncate" title="${escapeHtml(repo)}">${escapeHtml(repo)}</span>
                 ${syncBadge}
             </div>
+            <span class="repo-meta" aria-label="File count and size">—</span>
             <div class="repo-card-actions">
+                <button class="btn btn-ghost btn-icon btn-sm repo-copy-btn"
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.copy_id')}"
+                        aria-label="${t('repos.copy_id')}">
+                    <svg class="copy-icon" width="13" height="13" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <svg class="copy-check-icon" width="13" height="13" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                </button>
+                ${!localOnlyRepos.has(repo) && repo.includes('/') ? `
+                <a class="btn btn-ghost btn-icon btn-sm" href="https://huggingface.co/${repo}"
+                   target="_blank" rel="noopener noreferrer"
+                   title="${t('repos.open_hf')}" aria-label="${t('repos.open_hf')}">
+                    <svg width="13" height="13" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                </a>` : ''}
                 <button class="btn btn-ghost btn-icon btn-sm update-btn"
-                        data-repo="${escapeHtml(repo)}" title="Refresh sync status"
-                        aria-label="Refresh sync status">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_refresh')}"
+                        aria-label="${t('repos.btn_refresh')}">
                     <svg class="refresh-icon" width="13" height="13" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2.5"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -61,8 +92,8 @@ export function createRepoCard(repo) {
                     </svg>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm repo-hide-btn"
-                        data-repo="${escapeHtml(repo)}" title="Hide repo from list"
-                        aria-label="Hide repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_hide')}"
+                        aria-label="${t('repos.btn_hide')}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                          stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -72,8 +103,8 @@ export function createRepoCard(repo) {
                     </svg>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
-                        data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
-                        aria-label="Delete repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_delete')}"
+                        aria-label="${t('repos.btn_delete')}">
                     <svg width="13" height="13" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -102,6 +133,27 @@ export function createRepoCard(repo) {
                 <div class="skeleton skeleton-row"></div>
                 <div class="skeleton skeleton-row"></div>
             </div>
+            <div class="local-file-search-wrap" style="display:none;">
+                <div class="input-group">
+                    <svg class="input-icon" width="13" height="13" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" class="input input-sm local-file-search"
+                           autocomplete="off" spellcheck="false"
+                           data-i18n-placeholder="repos.file_search_placeholder">
+                </div>
+                <div class="file-sort-btns" role="group">
+                    <button class="btn btn-ghost btn-sm file-sort-btn" data-sort="name" data-dir="asc"
+                            type="button" data-i18n="repos.sort_name">Name</button>
+                    <button class="btn btn-ghost btn-sm file-sort-btn" data-sort="size" data-dir="desc"
+                            type="button" data-i18n="repos.sort_size">Size</button>
+                    <button class="btn btn-ghost btn-sm file-sort-btn" data-sort="reset"
+                            type="button" data-i18n="repos.sort_reset">Reset</button>
+                </div>
+            </div>
             <ul class="local-file-list"></ul>
             <div class="local-list-controls" style="display:none;">
                 <div class="local-controls-left">
@@ -129,6 +181,18 @@ export function createRepoCard(repo) {
                         </svg>
                         ${t('repos.schedule')}
                     </button>
+                    <button class="btn btn-primary btn-sm download-all-updates-btn"
+                            data-repo="${escapeHtml(repo)}" style="display:none;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.5"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                            <line x1="5" y1="9" x2="19" y2="9"/>
+                        </svg>
+                        ${t('repos.download_all_updates')}
+                    </button>
                 </div>
             </div>
         </div>
@@ -152,7 +216,7 @@ export function createHiddenRepoCard(repo) {
             </div>
             <div class="repo-card-actions">
                 <button class="btn btn-ghost btn-icon btn-sm repo-unhide-btn"
-                        data-repo="${escapeHtml(repo)}" title="Unhide repo" aria-label="Unhide repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_unhide')}" aria-label="${t('repos.btn_unhide')}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                          stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -161,8 +225,8 @@ export function createHiddenRepoCard(repo) {
                     </svg>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm repo-delete-btn"
-                        data-repo="${escapeHtml(repo)}" title="Delete repo and all files"
-                        aria-label="Delete repo">
+                        data-repo="${escapeHtml(repo)}" title="${t('repos.btn_delete')}"
+                        aria-label="${t('repos.btn_delete')}">
                     <svg width="13" height="13" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -178,6 +242,212 @@ export function createHiddenRepoCard(repo) {
     return li;
 }
 
+function _loadCardState(repoId) {
+    try { return JSON.parse(sessionStorage.getItem('repoCardStates') || '{}')[repoId] || {}; }
+    catch { return {}; }
+}
+
+function _saveCardState(repoId, patch) {
+    try {
+        const all = JSON.parse(sessionStorage.getItem('repoCardStates') || '{}');
+        all[repoId] = { ...(all[repoId] || {}), ...patch };
+        sessionStorage.setItem('repoCardStates', JSON.stringify(all));
+    } catch {}
+}
+
+const _statusEmojis  = { synced: '✅', not_downloaded: '🆕', outdated: '🔄', local_only: '🗑️' };
+const _statusLabels  = () => ({
+    synced:         t('repos.group_synced'),
+    local_only:     t('repos.group_local_only'),
+    outdated:       t('repos.group_outdated'),
+    not_downloaded: t('repos.group_not_downloaded'),
+});
+
+function _makeFileLi(file, repoId, displayName) {
+    const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
+    const canDelete   = file.status === 'synced';
+    const label       = displayName ?? file.name;
+    const checkboxId  = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const li = document.createElement('li');
+    li.className = 'status-file-item';
+    li.innerHTML = `
+        <span class="status-emoji">${_statusEmojis[file.status] || '❓'}</span>
+        ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
+        <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(label)}</label>
+        <span class="file-size" data-bytes="${file.size || 0}">${formatBytes(file.size)}</span>
+        ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="${t('repos.btn_delete_file')}" aria-label="${t('repos.btn_delete_file')}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+        </button>` : ''}
+    `;
+    return li;
+}
+
+function _sortItems(items, sort, dir) {
+    return [...items].sort((a, b) => {
+        if (sort === 'name') {
+            const na = a.querySelector('.file-name')?.textContent || '';
+            const nb = b.querySelector('.file-name')?.textContent || '';
+            return dir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+        }
+        if (sort === 'size') {
+            const sa = parseFloat(a.querySelector('.file-size')?.dataset.bytes || 0);
+            const sb = parseFloat(b.querySelector('.file-size')?.dataset.bytes || 0);
+            return dir === 'desc' ? sb - sa : sa - sb;
+        }
+        return 0;
+    });
+}
+
+function _applySortToList(fileList, sort, dir) {
+    if (settings.repoGroupMode !== 'none') {
+        fileList.querySelectorAll('.file-group-body').forEach(body => {
+            const items = [...body.querySelectorAll('.status-file-item')];
+            _sortItems(items, sort, dir).forEach(el => body.appendChild(el));
+        });
+    } else {
+        const items = [...fileList.querySelectorAll('.status-file-item')];
+        _sortItems(items, sort, dir).forEach(el => fileList.appendChild(el));
+    }
+}
+
+function _applyFileFilter(fileList, term) {
+    if (settings.repoGroupMode !== 'none') {
+        fileList.querySelectorAll('.file-group').forEach(group => {
+            let visible = 0;
+            group.querySelectorAll('.status-file-item').forEach(li => {
+                const name    = (li.querySelector('.file-name')?.textContent || '').toLowerCase();
+                const matches = !term || name.includes(term);
+                li.style.display = matches ? '' : 'none';
+                if (matches) visible++;
+            });
+            group.style.display = visible === 0 ? 'none' : '';
+        });
+    } else {
+        fileList.querySelectorAll('.status-file-item').forEach(li => {
+            const name = (li.querySelector('.file-name')?.textContent || '').toLowerCase();
+            li.style.display = !term || name.includes(term) ? '' : 'none';
+        });
+    }
+}
+
+function _renderFlat(statusList, fileList, repoId) {
+    statusList.forEach(file => fileList.appendChild(_makeFileLi(file, repoId)));
+}
+
+function _buildGroupElement(emoji, label, files, repoId, groupKey, displayNameFn) {
+    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+    const group = document.createElement('li');
+    group.className = 'file-group';
+    group.dataset.groupKey = groupKey;
+    group.innerHTML = `
+        <button class="file-group-header" type="button" aria-expanded="false">
+            <svg class="file-group-chevron" width="12" height="12" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            <span class="file-group-emoji">${emoji}</span>
+            <span class="file-group-label">${escapeHtml(label)}</span>
+            <span class="file-group-meta">(${files.length}) · ${formatBytes(totalSize)}</span>
+        </button>
+        <ul class="file-group-body"></ul>
+    `;
+    const header = group.querySelector('.file-group-header');
+    const body   = group.querySelector('.file-group-body');
+    files.forEach(f => body.appendChild(_makeFileLi(f, repoId, displayNameFn?.(f))));
+    header.addEventListener('click', () => {
+        const open = header.getAttribute('aria-expanded') === 'true';
+        header.setAttribute('aria-expanded', String(!open));
+        body.style.display = open ? 'none' : '';
+        const expandedGroups = [...group.parentElement.querySelectorAll('.file-group[data-group-key]')]
+            .filter(g => g.querySelector('.file-group-header')?.getAttribute('aria-expanded') === 'true')
+            .map(g => g.dataset.groupKey);
+        _saveCardState(repoId, { expandedGroups });
+    });
+    body.style.display = 'none';
+    return group;
+}
+
+function _renderGrouped(statusList, fileList, repoId) {
+    const groups  = ['synced', 'local_only', 'outdated', 'not_downloaded'];
+    const labels  = _statusLabels();
+    const grouped = Object.fromEntries(groups.map(g => [g, []]));
+    statusList.forEach(f => { if (grouped[f.status]) grouped[f.status].push(f); });
+    groups.forEach(status => {
+        if (grouped[status].length === 0) return;
+        fileList.appendChild(_buildGroupElement(
+            _statusEmojis[status] || '', labels[status] || status, grouped[status], repoId, status,
+        ));
+    });
+}
+
+function _renderGroupedByFolder(statusList, fileList, repoId) {
+    const rootFiles = [];
+    const folderMap = new Map();
+    statusList.forEach(f => {
+        const slash = f.name.indexOf('/');
+        if (slash === -1) {
+            rootFiles.push(f);
+        } else {
+            const folder = f.name.substring(0, slash);
+            if (!folderMap.has(folder)) folderMap.set(folder, []);
+            folderMap.get(folder).push(f);
+        }
+    });
+    rootFiles.forEach(f => fileList.appendChild(_makeFileLi(f, repoId)));
+    [...folderMap.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([folder, files]) => {
+        fileList.appendChild(_buildGroupElement(
+            '📁', `${folder}/`, files, repoId, folder,
+            f => f.name.substring(folder.length + 1),
+        ));
+    });
+}
+
+const _typeGroups = [
+    { key: 'weights',   emoji: '⚖️',  label: () => t('repos.group_type_weights'),   exts: new Set(['.safetensors','.bin','.pt','.pth','.ckpt','.gguf','.ggml','.pkl','.model']) },
+    { key: 'config',    emoji: '⚙️',  label: () => t('repos.group_type_config'),    exts: new Set(['.json','.yaml','.yml','.toml','.ini','.cfg','.txt','.md']) },
+    { key: 'tokenizer', emoji: '📝',  label: () => t('repos.group_type_tokenizer'), exts: null },
+    { key: 'media',     emoji: '🖼️', label: () => t('repos.group_type_media'),     exts: new Set(['.png','.jpg','.jpeg','.gif','.svg','.mp4','.wav','.mp3','.flac','.ogg']) },
+    { key: 'other',     emoji: '📄',  label: () => t('repos.group_type_other'),     exts: null },
+];
+const _tokenizerRe = /tokenizer|vocab|merges\.txt|special_tokens|sentencepiece|\.spm$/i;
+
+function _getFileTypeKey(name) {
+    const base = name.split('/').pop();
+    const ext  = base.includes('.') ? ('.' + base.split('.').pop()).toLowerCase() : '';
+    if (_tokenizerRe.test(base)) return 'tokenizer';
+    for (const g of _typeGroups) {
+        if (g.exts?.has(ext)) return g.key;
+    }
+    return 'other';
+}
+
+function _renderGroupedByType(statusList, fileList, repoId) {
+    const buckets = Object.fromEntries(_typeGroups.map(g => [g.key, []]));
+    statusList.forEach(f => buckets[_getFileTypeKey(f.name)].push(f));
+    _typeGroups.forEach(({ key, emoji, label }) => {
+        if (buckets[key].length === 0) return;
+        fileList.appendChild(_buildGroupElement(emoji, label(), buckets[key], repoId, key));
+    });
+}
+
+function _renderByMode(statusList, fileList, repoId) {
+    if (settings.repoGroupMode === 'status') {
+        _renderGrouped(statusList, fileList, repoId);
+    } else if (settings.repoGroupMode === 'folder') {
+        _renderGroupedByFolder(statusList, fileList, repoId);
+    } else if (settings.repoGroupMode === 'type') {
+        _renderGroupedByType(statusList, fileList, repoId);
+    } else {
+        _renderFlat(statusList, fileList, repoId);
+    }
+}
+
 export async function refreshRepoStatus(card) {
     const repoId        = card.dataset.repo;
     const body          = card.querySelector('.repo-card-body');
@@ -185,16 +455,18 @@ export async function refreshRepoStatus(card) {
     const skeleton      = card.querySelector('.file-skeleton');
     const statsBar      = card.querySelector('.sync-stats-bar');
     const localControls = card.querySelector('.local-list-controls');
-    const downloadBtn   = card.querySelector('.download-updates-btn');
-    const scheduleBtn   = card.querySelector('.schedule-updates-btn');
+    const downloadBtn      = card.querySelector('.download-updates-btn');
+    const scheduleBtn      = card.querySelector('.schedule-updates-btn');
+    const downloadAllBtn   = card.querySelector('.download-all-updates-btn');
     const refreshIcon   = card.querySelector('.refresh-icon');
 
     if (skeleton)    { skeleton.style.display = 'flex'; }
     if (fileList)      fileList.innerHTML = '';
     if (statsBar)      statsBar.style.display = 'none';
     if (localControls) localControls.style.display = 'none';
-    if (downloadBtn)   downloadBtn.style.display = 'none';
-    if (scheduleBtn)   scheduleBtn.style.display = 'none';
+    if (downloadBtn)    downloadBtn.style.display    = 'none';
+    if (scheduleBtn)    scheduleBtn.style.display    = 'none';
+    if (downloadAllBtn) downloadAllBtn.style.display = 'none';
     if (refreshIcon)   refreshIcon.classList.add('is-loading');
 
     try {
@@ -210,7 +482,14 @@ export async function refreshRepoStatus(card) {
         }
 
         const statusList = await response.json();
+        card._cachedStatusList = statusList;
         if (skeleton) skeleton.style.display = 'none';
+
+        const metaSpan = card.querySelector('.repo-meta');
+        if (metaSpan) {
+            const totalSize = statusList.reduce((s, f) => s + (f.size || 0), 0);
+            metaSpan.textContent = `${statusList.length} ${t('repos.meta_files')} · ${formatBytes(totalSize)}`;
+        }
 
         confirmedHFRepos.add(repoId);
         if (localOnlyRepos.has(repoId)) {
@@ -230,38 +509,73 @@ export async function refreshRepoStatus(card) {
             statsBar.style.display = 'flex';
         }
 
-        const statusEmojis = { synced: '✅', not_downloaded: '🆕', outdated: '🔄', local_only: '🗑️' };
-        let hasDownloadable = false;
-
-        statusList.forEach(file => {
-            const canDownload = file.status === 'not_downloaded' || file.status === 'outdated';
-            const canDelete   = file.status === 'synced';
-            if (canDownload) hasDownloadable = true;
-
-            const checkboxId = `cb-${repoId.replace(/[^a-zA-Z0-9]/g, '-')}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
-            const li = document.createElement('li');
-            li.className = 'status-file-item';
-            li.innerHTML = `
-                <span class="status-emoji">${statusEmojis[file.status] || '❓'}</span>
-                ${canDownload ? `<input type="checkbox" id="${checkboxId}" value="${escapeHtml(file.name)}" class="download-update-cb" checked>` : ''}
-                <label for="${checkboxId}" class="file-name truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</label>
-                <span class="file-size">${formatBytes(file.size)}</span>
-                ${canDelete ? `<button class="file-delete-btn" data-repo="${escapeHtml(repoId)}" data-file="${escapeHtml(file.name)}" title="Delete file" aria-label="Delete ${escapeHtml(file.name)}">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                    </svg>
-                </button>` : ''}
-            `;
-            fileList.appendChild(li);
+        const _statusOrder = { synced: 0, local_only: 1, outdated: 2, not_downloaded: 3 };
+        statusList.sort((a, b) => {
+            const od = (_statusOrder[a.status] ?? 9) - (_statusOrder[b.status] ?? 9);
+            return od !== 0 ? od : a.name.localeCompare(b.name);
         });
+
+        const hasDownloadable = statusList.some(
+            f => f.status === 'not_downloaded' || f.status === 'outdated'
+        );
+
+        _renderByMode(statusList, fileList, repoId);
+
+        // Restore expanded group state
+        const _saved = _loadCardState(repoId);
+        if (_saved.expandedGroups?.length > 0) {
+            fileList.querySelectorAll('.file-group[data-group-key]').forEach(groupEl => {
+                if (_saved.expandedGroups.includes(groupEl.dataset.groupKey)) {
+                    const h = groupEl.querySelector('.file-group-header');
+                    const b = groupEl.querySelector('.file-group-body');
+                    if (h && b) { h.setAttribute('aria-expanded', 'true'); b.style.display = ''; }
+                }
+            });
+        }
 
         if (hasDownloadable && localControls && downloadBtn) {
             localControls.style.display = 'flex';
             downloadBtn.style.display   = 'inline-flex';
-            if (scheduleBtn) scheduleBtn.style.display = 'inline-flex';
+            if (scheduleBtn)    scheduleBtn.style.display    = 'inline-flex';
+            if (downloadAllBtn) downloadAllBtn.style.display = 'inline-flex';
+        }
+
+        const searchWrap  = card.querySelector('.local-file-search-wrap');
+        const searchInput = card.querySelector('.local-file-search');
+        if (searchWrap && searchInput && statusList.length > 5) {
+            searchWrap.style.display = '';
+            if (_saved.search) {
+                searchInput.value = _saved.search;
+                _applyFileFilter(fileList, _saved.search.toLowerCase());
+            }
+            searchInput.addEventListener('input', () => {
+                const term = searchInput.value.trim();
+                _applyFileFilter(fileList, term.toLowerCase());
+                _saveCardState(repoId, { search: term });
+            });
+
+            card.querySelectorAll('.file-sort-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const sort = btn.dataset.sort;
+                    if (sort === 'reset') {
+                        card.querySelectorAll('.file-sort-btn').forEach(b => b.classList.remove('is-active'));
+                        card._cachedStatusList && (() => {
+                            fileList.innerHTML = '';
+                            _renderByMode(card._cachedStatusList, fileList, repoId);
+                            if (searchInput.value.trim()) _applyFileFilter(fileList, searchInput.value.trim().toLowerCase());
+                        })();
+                        return;
+                    }
+                    const wasActive = btn.classList.contains('is-active');
+                    const curDir    = btn.dataset.dir;
+                    const newDir    = wasActive ? (curDir === 'asc' ? 'desc' : 'asc') : curDir;
+                    btn.dataset.dir = newDir;
+                    card.querySelectorAll('.file-sort-btn').forEach(b => b.classList.remove('is-active'));
+                    btn.classList.add('is-active');
+                    btn.textContent = `${btn.getAttribute(`data-i18n`) ? t(btn.getAttribute('data-i18n')) : sort} ${newDir === 'asc' ? '↑' : '↓'}`;
+                    _applySortToList(fileList, sort, newDir);
+                });
+            });
         }
 
         try {
@@ -309,11 +623,21 @@ export async function refreshRepoStatus(card) {
 }
 
 export function renderCompletedList(completed) {
-    const visible = _repoFilter === 'hf'
+    _completedRepos = completed;
+
+    let visible = _repoFilter === 'hf'
         ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
         : _repoFilter === 'local'
             ? completed.filter(r => !r.includes('/') || localOnlyRepos.has(r))
             : completed;
+
+    const searchWrap = document.getElementById('repo-search-wrap');
+    if (searchWrap) searchWrap.style.display = visible.length > 5 ? '' : 'none';
+
+    if (_searchTerm) {
+        const term = _searchTerm.toLowerCase();
+        visible = visible.filter(r => r.toLowerCase().includes(term));
+    }
 
     _completedListUl.innerHTML = '';
 
@@ -331,6 +655,17 @@ export function renderCompletedList(completed) {
     visible.forEach(repo => {
         _completedListUl.appendChild(createRepoCard(repo));
     });
+
+    const openRepos = new Set(JSON.parse(sessionStorage.getItem('openRepos') || '[]'));
+    if (openRepos.size > 0) {
+        _completedListUl.querySelectorAll('.repo-card').forEach(card => {
+            if (openRepos.has(card.dataset.repo)) {
+                card.classList.add('is-expanded');
+                card.dataset.loaded = '1';
+                refreshRepoStatus(card);
+            }
+        });
+    }
 }
 
 export async function checkReposOnHF(repos) {
@@ -400,6 +735,28 @@ export async function loadHiddenRepos() {
 export function initRepos(completedListUl, startPollingProgress) {
     _completedListUl = completedListUl;
     _startPolling    = startPollingProgress;
+
+    const searchInput = document.getElementById('repo-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            _searchTerm = searchInput.value.trim();
+            renderCompletedList(_completedRepos);
+        });
+    }
 }
 
 export function getStartPolling() { return _startPolling; }
+
+export function reRenderOpenCards() {
+    if (!_completedListUl) return;
+    _completedListUl.querySelectorAll('.repo-card.is-expanded').forEach(card => {
+        const statusList = card._cachedStatusList;
+        if (!statusList) return;
+        const fileList    = card.querySelector('.local-file-list');
+        const searchInput = card.querySelector('.local-file-search');
+        if (!fileList) return;
+        if (searchInput) searchInput.value = '';
+        fileList.innerHTML = '';
+        _renderByMode(statusList, fileList, card.dataset.repo);
+    });
+}

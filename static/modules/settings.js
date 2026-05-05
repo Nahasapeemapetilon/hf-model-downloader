@@ -5,6 +5,7 @@ import { updateSyncStatusDisplay } from './sync.js';
 import { showToast } from './toast.js';
 import { t } from './i18n.js';
 import { initNotifications } from './notifications.js';
+import { reRenderOpenCards } from './repos.js';
 
 // ── HF Token ─────────────────────────────────────────────────
 
@@ -260,6 +261,16 @@ export function initSettings() {
             applySettings();
         });
     });
+
+    const groupModeSelect = document.getElementById('setting-repo-group-mode');
+    if (groupModeSelect) {
+        groupModeSelect.value = settings.repoGroupMode;
+        groupModeSelect.addEventListener('change', () => {
+            settings.repoGroupMode = groupModeSelect.value;
+            localStorage.setItem('setting-repo-group-mode', groupModeSelect.value);
+            reRenderOpenCards();
+        });
+    }
 
     initHfToken();
     initNotifications();

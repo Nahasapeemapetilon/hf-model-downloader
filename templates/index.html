@@ -447,6 +447,20 @@
                 </div>
                 {% endif %}
 
+                <div id="repo-search-wrap" class="repo-search-wrap" style="display:none;">
+                    <div class="input-group">
+                        <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="repo-search-input" class="input input-sm"
+                               autocomplete="off" spellcheck="false"
+                               data-i18n-placeholder="repos.search_placeholder">
+                    </div>
+                </div>
+
                 <ul id="completed-list" class="repo-list">
                     {% for repo in completed_downloads %}
                     <li class="repo-card completed-item" data-repo="{{ repo }}">
@@ -730,6 +744,21 @@
 
                 <div id="webhook-secret-hint" class="settings-row settings-row--meta" style="display:none;">
                     <span class="settings-row-desc" data-i18n="settings.webhook_secret_set">A secret is saved. Leave the field empty to keep it.</span>
+                </div>
+
+                <p class="settings-group-title" style="margin-top: var(--space-4);" data-i18n="settings.repo_view">Repos View</p>
+
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label" data-i18n="settings.repo_group_mode">Group files by</span>
+                        <span class="settings-row-desc"  data-i18n="settings.repo_group_mode_desc">How to group files inside an expanded repo card</span>
+                    </div>
+                    <select id="setting-repo-group-mode" class="settings-select">
+                        <option value="none"   data-i18n="settings.repo_group_mode_none">None (flat list)</option>
+                        <option value="status" data-i18n="settings.repo_group_mode_status">By status</option>
+                        <option value="type"   data-i18n="settings.repo_group_mode_type">By file type</option>
+                        <option value="folder" data-i18n="settings.repo_group_mode_folder">By folder</option>
+                    </select>
                 </div>
             </div>
 

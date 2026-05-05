@@ -1172,6 +1172,11 @@ a { color: inherit; text-decoration: none; }
    ------------------------------------------------------------ */
 .completed-body { padding: 0; }
 
+.repo-search-wrap {
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
 .repo-list { list-style: none; padding: 0; margin: 0; }
 
 .repo-card {
@@ -1200,6 +1205,13 @@ a { color: inherit; text-decoration: none; }
 }
 
 .repo-type-icon { color: var(--accent-500); flex-shrink: 0; }
+
+.repo-meta {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
 
 .repo-card-name {
     font-size: var(--text-sm);
@@ -1268,6 +1280,30 @@ a { color: inherit; text-decoration: none; }
 .sync-stat.outdated .sync-stat-count { color: var(--color-outdated); }
 .sync-stat.local    .sync-stat-count { color: var(--color-local); }
 
+/* Local File Search + Sort */
+.local-file-search-wrap {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.local-file-search-wrap .input-group { flex: 1; }
+
+.file-sort-btns {
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+}
+.file-sort-btn {
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    color: var(--text-muted);
+}
+.file-sort-btn.is-active {
+    color: var(--accent-400);
+    background: var(--bg-surface-2);
+}
+
 /* Local File List (inside Repo Card) */
 .local-file-list {
     list-style: none;
@@ -1278,6 +1314,44 @@ a { color: inherit; text-decoration: none; }
     gap: 2px;
     max-height: 260px;
     overflow-y: auto;
+}
+
+.file-group { list-style: none; }
+
+.file-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-2);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+    text-align: left;
+}
+.file-group-header:hover { background: var(--bg-surface-2); }
+
+.file-group-chevron {
+    flex-shrink: 0;
+    transition: transform var(--transition-fast);
+}
+.file-group-header[aria-expanded="true"] .file-group-chevron {
+    transform: rotate(90deg);
+}
+
+.file-group-emoji { flex-shrink: 0; }
+.file-group-label { flex: 1; }
+.file-group-meta  { color: var(--text-muted); flex-shrink: 0; }
+
+.file-group-body {
+    list-style: none;
+    padding: 0;
+    padding-left: var(--space-4);
 }
 
 .status-file-item {
