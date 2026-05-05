@@ -1,7 +1,7 @@
 import { fetchJson } from './api.js';
 import { escapeHtml, formatBytes } from './utils.js';
 import { showToast } from './toast.js';
-import { t } from './i18n.js';
+import { t, currentLang } from './i18n.js';
 import {
     localOnlyRepos, confirmedHFRepos, syncState,
     cachedSyncConfig, setCachedSyncConfig, saveLocalOnlyCache,
@@ -21,6 +21,16 @@ export function setRepoFilter(f) { _repoFilter = f; }
 export function repoTypeClass(repo) {
     if (localOnlyRepos.has(repo) || !repo.includes('/')) return 'is-local-repo';
     return 'is-hf-repo';
+}
+
+function _formatRepoMeta(meta) {
+    const size = formatBytes(meta.total_size || 0);
+    const count = `${meta.file_count || 0} ${t('repos.meta_files')}`;
+    if (!meta.completed_at) return `${count} · ${size}`;
+    const date = new Intl.DateTimeFormat(currentLang(), {
+        day: 'numeric', month: 'short', year: 'numeric',
+    }).format(new Date(meta.completed_at * 1000));
+    return `${count} · ${size} · ${date}`;
 }
 
 export function createRepoCard(repo) {
@@ -52,7 +62,7 @@ export function createRepoCard(repo) {
                 <span class="repo-card-name truncate" title="${escapeHtml(repo)}">${escapeHtml(repo)}</span>
                 ${syncBadge}
             </div>
-            <span class="repo-meta" aria-label="File count and size">—</span>
+            <span class="repo-meta" aria-label="File count and size">${_repoMeta.has(repo) ? _formatRepoMeta(_repoMeta.get(repo)) : '—'}</span>
             <div class="repo-card-actions">
                 <button class="btn btn-ghost btn-icon btn-sm repo-copy-btn"
                         data-repo="${escapeHtml(repo)}" title="${t('repos.copy_id')}"
@@ -489,7 +499,10 @@ export async function refreshRepoStatus(card) {
         const metaSpan = card.querySelector('.repo-meta');
         if (metaSpan) {
             const totalSize = statusList.reduce((s, f) => s + (f.size || 0), 0);
-            metaSpan.textContent = `${statusList.length} ${t('repos.meta_files')} · ${formatBytes(totalSize)}`;
+            const cached    = _repoMeta.get(repoId);
+            const meta      = { file_count: statusList.length, total_size: totalSize,
+                                completed_at: cached?.completed_at ?? 0 };
+            metaSpan.textContent = _formatRepoMeta(meta);
         }
 
         confirmedHFRepos.add(repoId);
