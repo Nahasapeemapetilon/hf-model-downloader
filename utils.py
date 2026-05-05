@@ -90,7 +90,7 @@ def send_webhook(url: str, secret: str | None, payload: dict) -> None:
     threading.Thread(target=_post, daemon=True).start()
 
 
-_completed_cache: list[str] | None = None
+_completed_cache: list[dict] | None = None
 _completed_cache_ts: float = 0.0
 _COMPLETED_CACHE_TTL: float = 10.0  # seconds
 
@@ -101,10 +101,31 @@ def invalidate_completed_cache() -> None:
     _completed_cache = None
 
 
-def get_completed_downloads() -> list[str]:
+def _scan_repo_meta(path: str) -> tuple[int, int, float]:
+    """Return (file_count, total_size_bytes, newest_mtime) for a repo directory."""
+    file_count   = 0
+    total_size   = 0
+    newest_mtime = 0.0
+    try:
+        for dirpath, _, filenames in os.walk(path):
+            for fname in filenames:
+                try:
+                    st = os.stat(os.path.join(dirpath, fname))
+                    file_count  += 1
+                    total_size  += st.st_size
+                    if st.st_mtime > newest_mtime:
+                        newest_mtime = st.st_mtime
+                except OSError:
+                    continue
+    except OSError:
+        pass
+    return file_count, total_size, newest_mtime
+
+
+def get_completed_downloads() -> list[dict]:
     """
     Scans DOWNLOAD_DIR for local repos.
-    Returns sorted list of repo IDs (e.g. 'org/model' or 'gpt2').
+    Returns sorted list of dicts: {id, file_count, total_size, newest_mtime}.
     Result is cached for _COMPLETED_CACHE_TTL seconds to avoid repeated disk scans.
     """
     global _completed_cache, _completed_cache_ts
@@ -112,7 +133,7 @@ def get_completed_downloads() -> list[str]:
     if _completed_cache is not None and now - _completed_cache_ts < _COMPLETED_CACHE_TTL:
         return _completed_cache
 
-    completed = []
+    completed: dict[str, dict] = {}
     if not os.path.exists(DOWNLOAD_DIR):
         _completed_cache    = []
         _completed_cache_ts = now
@@ -139,15 +160,20 @@ def get_completed_downloads() -> list[str]:
                         continue
                     try:
                         if has_any_file(sub_path):
-                            completed.append(f"{item}/{sub}")
+                            repo_id = f"{item}/{sub}"
+                            fc, ts, nm = _scan_repo_meta(sub_path)
+                            completed[repo_id] = {"id": repo_id, "file_count": fc,
+                                                  "total_size": ts, "newest_mtime": nm}
                     except OSError:
                         continue
             elif has_files or has_any_file(item_path):
-                completed.append(item)
+                fc, ts, nm = _scan_repo_meta(item_path)
+                completed[item] = {"id": item, "file_count": fc,
+                                   "total_size": ts, "newest_mtime": nm}
         except OSError:
             continue
 
-    result = sorted(set(completed))
+    result = sorted(completed.values(), key=lambda d: d["id"])
     _completed_cache    = result
     _completed_cache_ts = now
     return result

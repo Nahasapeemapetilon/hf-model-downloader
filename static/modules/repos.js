@@ -13,6 +13,7 @@ let _completedListUl = null;
 let _startPolling    = null;
 let _completedRepos  = [];
 let _searchTerm      = '';
+let _repoMeta        = new Map();
 
 export function getRepoFilter() { return _repoFilter; }
 export function setRepoFilter(f) { _repoFilter = f; }
@@ -625,18 +626,22 @@ export async function refreshRepoStatus(card) {
 export function renderCompletedList(completed) {
     _completedRepos = completed;
 
+    // Populate meta map from enriched /completed response
+    completed.forEach(r => _repoMeta.set(r.id, r));
+    const ids = completed.map(r => r.id);
+
     let visible = _repoFilter === 'hf'
-        ? completed.filter(r => r.includes('/') && !localOnlyRepos.has(r))
+        ? ids.filter(id => id.includes('/') && !localOnlyRepos.has(id))
         : _repoFilter === 'local'
-            ? completed.filter(r => !r.includes('/') || localOnlyRepos.has(r))
-            : completed;
+            ? ids.filter(id => !id.includes('/') || localOnlyRepos.has(id))
+            : ids;
 
     const searchWrap = document.getElementById('repo-search-wrap');
     if (searchWrap) searchWrap.style.display = visible.length > 5 ? '' : 'none';
 
     if (_searchTerm) {
         const term = _searchTerm.toLowerCase();
-        visible = visible.filter(r => r.toLowerCase().includes(term));
+        visible = visible.filter(id => id.toLowerCase().includes(term));
     }
 
     _completedListUl.innerHTML = '';
@@ -652,8 +657,8 @@ export function renderCompletedList(completed) {
     }
     if (emptyState) emptyState.style.display = 'none';
 
-    visible.forEach(repo => {
-        _completedListUl.appendChild(createRepoCard(repo));
+    visible.forEach(repoId => {
+        _completedListUl.appendChild(createRepoCard(repoId));
     });
 
     const openRepos = new Set(JSON.parse(sessionStorage.getItem('openRepos') || '[]'));
@@ -711,7 +716,7 @@ export async function updateCompletedList() {
 
         renderCompletedList(completed);
 
-        const toCheck = completed.filter(r => r.includes('/'));
+        const toCheck = completed.map(r => r.id).filter(id => id.includes('/'));
         if (toCheck.length > 0) {
             const changed = await checkReposOnHF(toCheck);
             if (changed) renderCompletedList(completed);

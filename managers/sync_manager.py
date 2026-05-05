@@ -278,7 +278,7 @@ class SyncManager:
 
     def _worker(self):
         try:
-            repos = get_completed_downloads()
+            repos = [r["id"] for r in get_completed_downloads()]
             with self._lock:
                 excluded      = set(self._config.get("excluded_repos", []))
                 mode          = self._config.get("mode", "notify")

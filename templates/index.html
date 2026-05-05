@@ -463,7 +463,7 @@
 
                 <ul id="completed-list" class="repo-list">
                     {% for repo in completed_downloads %}
-                    <li class="repo-card completed-item" data-repo="{{ repo }}">
+                    <li class="repo-card completed-item" data-repo="{{ repo.id }}">
                         <div class="repo-card-header">
                             <div class="repo-card-title">
                                 <svg class="repo-type-icon" width="14" height="14" viewBox="0 0 24 24"
@@ -471,12 +471,12 @@
                                      stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                                 </svg>
-                                <span class="repo-card-name" title="{{ repo }}">{{ repo }}</span>
+                                <span class="repo-card-name" title="{{ repo.id }}">{{ repo.id }}</span>
                             </div>
                             <div class="repo-card-actions">
                                 <button class="btn btn-ghost btn-icon btn-sm update-btn"
-                                        data-repo="{{ repo }}" title="Refresh sync status"
-                                        aria-label="Refresh sync status for {{ repo }}">
+                                        data-repo="{{ repo.id }}" title="Refresh sync status"
+                                        aria-label="Refresh sync status for {{ repo.id }}">
                                     <svg class="refresh-icon" width="13" height="13" viewBox="0 0 24 24"
                                          fill="none" stroke="currentColor" stroke-width="2.5"
                                          stroke-linecap="round" stroke-linejoin="round">

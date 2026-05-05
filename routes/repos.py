@@ -40,7 +40,26 @@ def _save_hidden(hidden: set):
 @repos_bp.route("/completed")
 def completed():
     hidden = _load_hidden()
-    return jsonify([r for r in get_completed_downloads() if r not in hidden])
+    repos  = [r for r in get_completed_downloads() if r["id"] not in hidden]
+
+    # Attach completed_at from download history (fallback: newest_mtime)
+    try:
+        with open(cfg.HISTORY_PATH, "r", encoding="utf-8") as f:
+            history = json.load(f)
+        hist_map: dict[str, float] = {}
+        for entry in history:
+            if entry.get("status") == "completed":
+                rid = entry.get("repo_id", "")
+                ts  = entry.get("completed_at") or 0
+                if ts > hist_map.get(rid, 0):
+                    hist_map[rid] = ts
+    except Exception:
+        hist_map = {}
+
+    for r in repos:
+        r["completed_at"] = hist_map.get(r["id"], r.get("newest_mtime", 0))
+
+    return jsonify(repos)
 
 
 @repos_bp.route("/api/repo/hidden", methods=["GET"])
